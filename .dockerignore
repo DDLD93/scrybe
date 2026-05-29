@@ -1,0 +1,32 @@
+# Dependencies (reinstalled in image via npm ci)
+node_modules
+
+# Next.js build output (rebuilt in image via npm run build)
+.next
+out
+
+# Git / IDE
+.git
+.gitignore
+.cursor
+.vscode
+
+# Local env (injected at runtime in Dokploy)
+.env
+.env.*
+!.env.example
+
+# Logs and OS junk
+*.log
+.DS_Store
+Thumbs.db
+
+# Tests and coverage
+coverage
+
+# Drizzle generated locally
+drizzle
+
+# Docs (not needed at runtime)
+*.md
+!README.md
