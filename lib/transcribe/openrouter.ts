@@ -6,25 +6,50 @@ export type ModelInfo = { id: string; name: string };
 let modelsCache: { at: number; models: ModelInfo[] } | null = null;
 
 const FALLBACK_MODELS: ModelInfo[] = [
+  { id: "openai/whisper-large-v3-turbo", name: "Whisper Large V3 Turbo" },
   { id: "openai/whisper-1", name: "Whisper 1" },
   { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
 ];
 
 const routeCache = new Map<string, "stt" | "chat">();
 
+type OpenRouterModel = { id: string; name?: string };
+
+async function fetchOpenRouterModels(url: string): Promise<OpenRouterModel[]> {
+  const res = await fetch(url, {
+    headers: config.openrouterApiKey
+      ? { Authorization: `Bearer ${config.openrouterApiKey}` }
+      : {},
+  });
+  if (!res.ok) throw new Error(`models fetch failed: ${url}`);
+  const json = (await res.json()) as { data?: OpenRouterModel[] };
+  return json.data ?? [];
+}
+
+function mergeModels(lists: OpenRouterModel[][]): ModelInfo[] {
+  const byId = new Map<string, ModelInfo>();
+  for (const list of lists) {
+    for (const m of list) {
+      if (!byId.has(m.id)) {
+        byId.set(m.id, { id: m.id, name: m.name ?? m.id });
+      }
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
 export async function listModels(): Promise<ModelInfo[]> {
   if (modelsCache && Date.now() - modelsCache.at < 5 * 60 * 1000) {
     return modelsCache.models;
   }
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/models", {
-      headers: config.openrouterApiKey
-        ? { Authorization: `Bearer ${config.openrouterApiKey}` }
-        : {},
-    });
-    if (!res.ok) throw new Error("models fetch failed");
-    const json = (await res.json()) as { data?: Array<{ id: string; name?: string }> };
-    const models = (json.data ?? []).map((m) => ({ id: m.id, name: m.name ?? m.id }));
+    const [allModels, sttModels] = await Promise.all([
+      fetchOpenRouterModels("https://openrouter.ai/api/v1/models"),
+      fetchOpenRouterModels(
+        "https://openrouter.ai/api/v1/models?output_modalities=transcription",
+      ),
+    ]);
+    const models = mergeModels([allModels, sttModels]);
     if (models.length >= 2) {
       modelsCache = { at: Date.now(), models };
       return models;

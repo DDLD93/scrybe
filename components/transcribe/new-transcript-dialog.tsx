@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   IconCloudUpload,
   IconLink,
@@ -17,12 +17,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ModelSelect } from "@/components/transcribe/model-select";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -96,16 +95,6 @@ export function NewTranscriptDialog({
     }
     init();
   }, [open]);
-
-  const grouped = useMemo(
-    () =>
-      models.reduce<Record<string, Model[]>>((acc, m) => {
-        const provider = m.id.split("/")[0] ?? "other";
-        (acc[provider] ??= []).push(m);
-        return acc;
-      }, {}),
-    [models],
-  );
 
   const handleFile = useCallback((f: File | null) => {
     setFile(f);
@@ -275,9 +264,9 @@ export function NewTranscriptDialog({
                   setSize={setSize}
                   model={model}
                   setModel={setModel}
+                  models={models}
                   prompt={prompt}
                   setPrompt={setPrompt}
-                  grouped={grouped}
                   disabled={busy}
                 />
 
@@ -326,9 +315,9 @@ export function NewTranscriptDialog({
                   setSize={setSize}
                   model={model}
                   setModel={setModel}
+                  models={models}
                   prompt={prompt}
                   setPrompt={setPrompt}
-                  grouped={grouped}
                   disabled={busy}
                 />
 
@@ -363,9 +352,9 @@ type FormFieldsProps = {
   setSize: (v: string) => void;
   model: string;
   setModel: (v: string) => void;
+  models: Model[];
   prompt: string;
   setPrompt: (v: string) => void;
-  grouped: Record<string, Model[]>;
   disabled?: boolean;
 };
 
@@ -376,19 +365,11 @@ const FormFields = memo(function FormFields({
   setSize,
   model,
   setModel,
+  models,
   prompt,
   setPrompt,
-  grouped,
   disabled,
 }: FormFieldsProps) {
-  const modelOptions = useMemo(
-    () =>
-      Object.entries(grouped)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([provider, items]) => ({ provider, items })),
-    [grouped],
-  );
-
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -418,23 +399,12 @@ const FormFields = memo(function FormFields({
 
       <div className="space-y-2">
         <Label>Model</Label>
-        <Select value={model} onValueChange={setModel} disabled={disabled}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select model" />
-          </SelectTrigger>
-          <SelectContent position="popper" className="max-h-64">
-            {modelOptions.map(({ provider, items }) => (
-              <SelectGroup key={provider}>
-                <SelectLabel>{provider}</SelectLabel>
-                {items.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            ))}
-          </SelectContent>
-        </Select>
+        <ModelSelect
+          models={models}
+          value={model}
+          onValueChange={setModel}
+          disabled={disabled}
+        />
       </div>
 
       <div className="space-y-2">
