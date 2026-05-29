@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ["pg"],
+  turbopack: {
+    root: import.meta.dirname,
+  },
 };
 
 export default nextConfig;
