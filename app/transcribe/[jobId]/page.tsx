@@ -243,9 +243,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
               ref={transcriptRef}
               className="transcript-scroll max-h-[28rem] overflow-y-auto text-sm leading-relaxed text-muted-foreground"
             >
-              {words.length === 0 ? (
-                <p>No word-level transcript available.</p>
-              ) : (
+              {words.length > 0 ? (
                 words.map((w, i) => (
                   <span
                     key={`${i}-${w.start}`}
@@ -261,6 +259,21 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
                     {w.word}
                   </span>
                 ))
+              ) : segments.length > 0 ? (
+                segments.map((s) => (
+                  <p
+                    key={s.id}
+                    onClick={() => seekTo(s.start)}
+                    className="mb-3 cursor-pointer rounded px-1 transition-colors hover:text-foreground"
+                  >
+                    <span className="mr-2 text-xs tabular-nums text-muted-foreground/70">
+                      {fmt(s.start)}
+                    </span>
+                    {s.text}
+                  </p>
+                ))
+              ) : (
+                <p>No transcript available.</p>
               )}
             </div>
           )}

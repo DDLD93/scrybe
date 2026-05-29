@@ -86,6 +86,34 @@ export function compileFromWords(
   return { version: 1, language, duration, words, segments };
 }
 
+export function compileFromChunks(
+  chunks: Array<{
+    idx: number;
+    startSec: number | string | null;
+    durSec: number | string | null;
+    transcript: string | null;
+  }>,
+  language = "unknown",
+): CompiledTranscript {
+  const segments: TranscriptSegment[] = [];
+  for (const c of chunks) {
+    const text = (c.transcript ?? "").trim();
+    if (!text) continue;
+    const start = Number(c.startSec ?? 0);
+    const end = start + Number(c.durSec ?? 0);
+    segments.push({
+      id: c.idx,
+      start,
+      end,
+      text,
+      wordStartIdx: 0,
+      wordEndIdx: 0,
+    });
+  }
+  const duration = segments.length ? segments[segments.length - 1].end : 0;
+  return { version: 1, language, duration, words: [], segments };
+}
+
 function fmtTime(sec: number): string {
   const s = Math.round(sec);
   const m = Math.floor(s / 60);

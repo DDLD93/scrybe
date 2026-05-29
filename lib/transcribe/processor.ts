@@ -11,6 +11,7 @@ import {
 } from "@/lib/transcribe/chunker";
 import { transcribeChunk } from "@/lib/transcribe/openrouter";
 import {
+  compileFromChunks,
   compileFromWords,
   compileMarkdown,
   markdownFromTranscript,
@@ -129,14 +130,17 @@ export async function processTranscribeJob(jobId: string): Promise<void> {
       })),
     );
 
+    const transcriptKey = `jobs/${jobId}/transcript.json`;
     let resultMd: string;
+    let language: string | undefined;
     if (words.length > 0) {
       const compiled = compileFromWords(words);
-      const transcriptKey = `jobs/${jobId}/transcript.json`;
       await putBuffer(transcriptKey, JSON.stringify(compiled), "application/json");
       resultMd = markdownFromTranscript(compiled, job.filename, job.model);
-      await updateTranscribeJob(jobId, { transcriptKey, language: compiled.language });
+      language = compiled.language;
     } else {
+      const compiled = compileFromChunks(allChunks, job.language ?? undefined);
+      await putBuffer(transcriptKey, JSON.stringify(compiled), "application/json");
       resultMd = compileMarkdown(
         job.filename,
         job.model,
@@ -144,7 +148,9 @@ export async function processTranscribeJob(jobId: string): Promise<void> {
         String(job.chunkSize),
         allChunks,
       );
+      language = compiled.language;
     }
+    await updateTranscribeJob(jobId, { transcriptKey, language });
 
     const resultKey = `jobs/${jobId}/result.md`;
     await putBuffer(resultKey, resultMd, "text/markdown");
