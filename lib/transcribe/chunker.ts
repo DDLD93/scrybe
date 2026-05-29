@@ -66,8 +66,10 @@ export async function split(
   }
 
   const pattern = join(outDir, `%03d.${ext}`);
+  const audioMap = ["-map", "0:a:0"];
   const baseArgs = [
     "-i", input,
+    ...audioMap,
     "-f", "segment",
     "-segment_time", String(secondsPerSegment),
     "-reset_timestamps", "1",
@@ -97,6 +99,8 @@ export async function split(
 export async function normalizeForPlayback(input: string, output: string): Promise<void> {
   await runCmd(config.ffmpegPath, [
     "-i", input,
+    "-map", "0:a:0",
+    "-vn",
     "-c:a", "aac",
     "-b:a", "128k",
     "-movflags", "+faststart",
