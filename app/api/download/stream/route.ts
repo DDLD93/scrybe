@@ -2,10 +2,10 @@ import { NextRequest } from "next/server";
 import type { DownloadJobOptions } from "@/lib/download/argv-builder";
 import { validateDownloadUrl } from "@/lib/download/ssrf";
 import { contentDispositionAttachment, createYtdlpDownloadStream } from "@/lib/download/stream";
-import { config } from "@/lib/config";
 import { error, handleRoute } from "@/lib/api";
 
-export const maxDuration = config.downloadJobTimeoutSec;
+/** Must be a static literal for Next.js segment config (matches DOWNLOAD_JOB_TIMEOUT_SEC default). */
+export const maxDuration = 3600;
 
 export async function POST(req: NextRequest) {
   return handleRoute(async () => {
