@@ -30,13 +30,18 @@ export function useTranscribeJobs(pollMs = 2000, paused = false) {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    if (paused) return;
-    const t = setInterval(refresh, pollMs);
-    return () => clearInterval(t);
+    const run = () => {
+      void refresh();
+    };
+    const initial = window.setTimeout(run, 0);
+    if (paused) {
+      return () => window.clearTimeout(initial);
+    }
+    const t = window.setInterval(run, pollMs);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(t);
+    };
   }, [refresh, pollMs, paused]);
 
   const hasActiveJobs = jobs.some((j) =>

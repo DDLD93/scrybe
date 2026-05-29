@@ -6,7 +6,7 @@ Two modules, one app — loosely coupled, built on Next.js.
 
 | Module | Route | What it does |
 |--------|-------|--------------|
-| **Downloader** | `/download` | Inspect URLs, pick formats, queue yt-dlp jobs |
+| **Downloader** | `/download` | Inspect URLs, pick formats, stream downloads to your browser |
 | **Transcriber** | `/transcribe` | Upload or ingest audio, chunk with ffmpeg, transcribe, export |
 | **Player** | `/transcribe/[jobId]` | Range-streamed playback with clickable, highlighted words |
 
@@ -33,7 +33,7 @@ Infrastructure is **remote**: point environment variables at your Postgres and S
 **On the machine running the app and worker:**
 
 - Node.js 20+
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — use the **standalone** binary ([`yt-dlp.exe`](https://github.com/yt-dlp/yt-dlp/releases) on Windows, `yt-dlp_linux` in Docker). The Python script (`#!/usr/bin/env python3`) requires Python and will fail without it.
 - [ffmpeg](https://ffmpeg.org) and ffprobe
 
 **Remote services:**
@@ -101,7 +101,7 @@ The download module can inspect URLs without Postgres or storage. Transcription 
 
 ## UI overview
 
-**Download** — paste a URL, inspect formats, choose a preset (MP3, AAC, MP4, …), and track job progress. Completed downloads can be sent straight to the transcriber.
+**Download** — paste a URL, inspect formats, choose a preset (MP3, AAC, MP4, …), and save the file directly to your computer. Background jobs (for transcribe bridge) still appear in the recent downloads table.
 
 **Transcribe** — jobs table is the home screen. Click **New Transcript** to upload a file or fetch from URL. Configure chunk size, model, and an optional system prompt. Upload progress is shown while the file streams to storage.
 
@@ -114,7 +114,8 @@ The download module can inspect URLs without Postgres or storage. Transcription 
 REST endpoints under `/api/download/*` and `/api/transcribe/*`. Notable routes:
 
 - `GET /api/download/info?url=` — metadata preview (no job)
-- `POST /api/download/jobs` — start a download
+- `POST /api/download/stream` — stream media straight to the browser
+- `POST /api/download/jobs` — background download (for transcribe bridge)
 - `POST /api/transcribe` — upload audio (raw body + query params)
 - `GET /api/transcribe/jobs/[id]/audio` — range-request streaming
 - `GET /api/transcribe/jobs/[id]/transcript` — word-level JSON

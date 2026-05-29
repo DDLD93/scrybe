@@ -10,6 +10,7 @@ import {
   insertDownloadArtifact,
   updateDownloadJob,
 } from "@/lib/db/queries";
+import { guessContentType } from "@/lib/download/content-type";
 import { putFile } from "@/lib/storage/s3";
 
 const activeControllers = new Map<string, AbortController>();
@@ -115,16 +116,3 @@ export async function processDownloadJob(jobId: string): Promise<void> {
   }
 }
 
-function guessContentType(ext: string): string {
-  const map: Record<string, string> = {
-    mp3: "audio/mpeg",
-    m4a: "audio/mp4",
-    mp4: "video/mp4",
-    mkv: "video/x-matroska",
-    webm: "video/webm",
-    aac: "audio/aac",
-    opus: "audio/opus",
-    wav: "audio/wav",
-  };
-  return map[ext] ?? "application/octet-stream";
-}

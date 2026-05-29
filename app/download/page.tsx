@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { saveDownloadResponse } from "@/lib/download/save-stream-response";
 import {
   IconDownload,
   IconDotsVertical,
@@ -47,6 +49,7 @@ type Job = {
 const PRESETS = ["mp3", "aac", "mp4", "mkv", "best"] as const;
 
 export default function DownloadPage() {
+  const router = useRouter();
   const [url, setUrl] = useState("");
   const [preset, setPreset] = useState<string>("mp3");
   const [format, setFormat] = useState("");
@@ -57,6 +60,7 @@ export default function DownloadPage() {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const downloadAbortRef = useRef<AbortController | null>(null);
   const [writeSubs, setWriteSubs] = useState(false);
   const [noPlaylist, setNoPlaylist] = useState(false);
   const [playlistItems, setPlaylistItems] = useState("");
@@ -75,9 +79,15 @@ export default function DownloadPage() {
   }, []);
 
   useEffect(() => {
-    loadJobs();
-    const t = setInterval(loadJobs, 2000);
-    return () => clearInterval(t);
+    const run = () => {
+      void loadJobs();
+    };
+    const initial = window.setTimeout(run, 0);
+    const t = window.setInterval(run, 2000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(t);
+    };
   }, [loadJobs]);
 
   useEffect(() => {
@@ -97,6 +107,10 @@ export default function DownloadPage() {
     }, 2000);
     return () => clearInterval(t);
   }, [activeJobId, loadJobs]);
+
+  useEffect(() => {
+    return () => downloadAbortRef.current?.abort();
+  }, []);
 
   async function inspect() {
     setLoading(true);
@@ -120,9 +134,18 @@ export default function DownloadPage() {
   }
 
   async function startDownload() {
+    if (playlistItems) {
+      toast.error("Playlist items are not supported for direct downloads. Clear playlist items or use Transcribe from URL.");
+      return;
+    }
+
+    downloadAbortRef.current?.abort();
+    const controller = new AbortController();
+    downloadAbortRef.current = controller;
+
     setDownloading(true);
     try {
-      const res = await fetch("/api/download/jobs", {
+      const res = await fetch("/api/download/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -131,20 +154,27 @@ export default function DownloadPage() {
           options: {
             format: format || undefined,
             writeSubs,
-            noPlaylist,
-            playlistItems: playlistItems || undefined,
+            noPlaylist: true,
             sponsorblockRemove: sponsorblock ? sponsorblock.split(",").map((s) => s.trim()) : undefined,
           },
         }),
+        signal: controller.signal,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Download failed");
-      toast.info("Download started");
-      setActiveJobId(data.jobId);
-      loadJobs();
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? "Download failed");
+      }
+
+      const filename = await saveDownloadResponse(res);
+      toast.success(`Saved ${filename}`);
     } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return;
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
+      if (downloadAbortRef.current === controller) {
+        downloadAbortRef.current = null;
+      }
       setDownloading(false);
     }
   }
@@ -156,7 +186,7 @@ export default function DownloadPage() {
       toast.error(data.error ?? "Bridge failed");
     } else {
       toast.success("Transcription started");
-      window.location.href = "/transcribe";
+      router.push("/transcribe");
     }
   }
 
@@ -186,14 +216,14 @@ export default function DownloadPage() {
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Download audio and video from URLs with yt-dlp
+          Stream downloads directly to your computer. Background jobs in the table are used for transcribe bridge.
         </p>
       </div>
 
       <Card className="glass-card ring-1 ring-border/50">
         <CardHeader>
           <CardTitle className="text-sm">New Download</CardTitle>
-          <CardDescription>Paste a URL, inspect formats, then download</CardDescription>
+          <CardDescription>Paste a URL, inspect formats, then save to your device</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -453,7 +483,8 @@ export default function DownloadPage() {
         <ul className="mt-2 space-y-1 list-disc pl-4 font-mono">
           <li>GET /api/download/info?url=</li>
           <li>GET /api/download/formats?url=</li>
-          <li>POST /api/download/jobs {"{ url, preset, options }"}</li>
+          <li>POST /api/download/stream {"{ url, preset, options }"}</li>
+          <li>POST /api/download/jobs {"{ url, preset, options }"} (background / transcribe)</li>
           <li>GET /api/download/jobs/{"{id}"}</li>
         </ul>
       </details>
