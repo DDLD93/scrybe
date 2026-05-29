@@ -3,7 +3,25 @@ import type { TranscriptWord } from "@/lib/db/schema";
 
 export type ModelInfo = { id: string; name: string };
 
-let modelsCache: { at: number; models: ModelInfo[] } | null = null;
+type OpenRouterArchitecture = {
+  input_modalities?: string[];
+  output_modalities?: string[];
+};
+
+type OpenRouterModel = {
+  id: string;
+  name?: string;
+  architecture?: OpenRouterArchitecture;
+};
+
+type ModelsCache = {
+  at: number;
+  models: ModelInfo[];
+  sttOnlyIds: Set<string>;
+  chatAudioIds: Set<string>;
+};
+
+let modelsCache: ModelsCache | null = null;
 
 const FALLBACK_MODELS: ModelInfo[] = [
   { id: "openai/whisper-large-v3-turbo", name: "Whisper Large V3 Turbo" },
@@ -11,9 +29,16 @@ const FALLBACK_MODELS: ModelInfo[] = [
   { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
 ];
 
-const routeCache = new Map<string, "stt" | "chat">();
+const FALLBACK_STT_ONLY = new Set([
+  "openai/whisper-large-v3-turbo",
+  "openai/whisper-large-v3",
+  "openai/whisper-1",
+  "openai/gpt-4o-transcribe",
+  "openai/gpt-4o-mini-transcribe",
+  "google/chirp-3",
+]);
 
-type OpenRouterModel = { id: string; name?: string };
+const routeCache = new Map<string, "stt" | "chat">();
 
 async function fetchOpenRouterModels(url: string): Promise<OpenRouterModel[]> {
   const res = await fetch(url, {
@@ -38,9 +63,33 @@ function mergeModels(lists: OpenRouterModel[][]): ModelInfo[] {
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-export async function listModels(): Promise<ModelInfo[]> {
+function isSttOnlyModel(model: OpenRouterModel): boolean {
+  const outputs = model.architecture?.output_modalities ?? [];
+  return outputs.includes("transcription");
+}
+
+function isChatAudioModel(model: OpenRouterModel): boolean {
+  const inputs = model.architecture?.input_modalities ?? [];
+  const outputs = model.architecture?.output_modalities ?? [];
+  return inputs.includes("audio") && outputs.includes("text") && !outputs.includes("transcription");
+}
+
+function buildModelsCache(allModels: OpenRouterModel[], sttModels: OpenRouterModel[]): ModelsCache {
+  const sttOnlyIds = new Set(sttModels.filter(isSttOnlyModel).map((m) => m.id));
+  const chatAudioIds = new Set(allModels.filter(isChatAudioModel).map((m) => m.id));
+  for (const id of FALLBACK_STT_ONLY) sttOnlyIds.add(id);
+
+  return {
+    at: Date.now(),
+    models: mergeModels([allModels, sttModels]),
+    sttOnlyIds,
+    chatAudioIds,
+  };
+}
+
+async function ensureModelsCache(): Promise<ModelsCache> {
   if (modelsCache && Date.now() - modelsCache.at < 5 * 60 * 1000) {
-    return modelsCache.models;
+    return modelsCache;
   }
   try {
     const [allModels, sttModels] = await Promise.all([
@@ -49,15 +98,44 @@ export async function listModels(): Promise<ModelInfo[]> {
         "https://openrouter.ai/api/v1/models?output_modalities=transcription",
       ),
     ]);
-    const models = mergeModels([allModels, sttModels]);
-    if (models.length >= 2) {
-      modelsCache = { at: Date.now(), models };
-      return models;
+    if (allModels.length + sttModels.length >= 2) {
+      modelsCache = buildModelsCache(allModels, sttModels);
+      return modelsCache;
     }
   } catch {
-    /* fallback */
+    /* fallback below */
   }
-  return FALLBACK_MODELS;
+
+  modelsCache = {
+    at: Date.now(),
+    models: FALLBACK_MODELS,
+    sttOnlyIds: new Set(FALLBACK_STT_ONLY),
+    chatAudioIds: new Set(["google/gemini-2.5-flash"]),
+  };
+  return modelsCache;
+}
+
+export async function listModels(): Promise<ModelInfo[]> {
+  const cache = await ensureModelsCache();
+  return cache.models;
+}
+
+function isSttModelHeuristic(model: string): boolean {
+  const id = model.toLowerCase();
+  return /whisper|transcrib|\/asr|chirp|voxtral|parakeet|stt/.test(id);
+}
+
+function getRouteOrder(model: string, cache: ModelsCache): Array<"stt" | "chat"> {
+  const cached = routeCache.get(model);
+  if (cached) return [cached];
+
+  const sttOnly = cache.sttOnlyIds.has(model) || isSttModelHeuristic(model);
+  const chatAudio = cache.chatAudioIds.has(model);
+
+  if (sttOnly && !chatAudio) return ["stt"];
+  if (chatAudio && !sttOnly) return ["chat", "stt"];
+  if (model.toLowerCase().includes("whisper")) return ["stt", "chat"];
+  return ["stt", "chat"];
 }
 
 export type TranscribeChunkResult = {
@@ -75,12 +153,8 @@ export async function transcribeChunk(
     throw new Error("OPENROUTER_API_KEY is not set");
   }
 
-  const cached = routeCache.get(model);
-  const order: Array<"stt" | "chat"> = cached
-    ? [cached]
-    : model.toLowerCase().includes("whisper")
-      ? ["stt", "chat"]
-      : ["chat", "stt"];
+  const cache = await ensureModelsCache();
+  const order = getRouteOrder(model, cache);
 
   let lastErr: Error | null = null;
   for (const route of order) {
@@ -114,9 +188,11 @@ async function sttRoute(
   const body: Record<string, unknown> = {
     model,
     input_audio: { data: base64Audio, format },
-    response_format: "verbose_json",
-    timestamp_granularities: ["word", "segment"],
   };
+  if (model.toLowerCase().includes("whisper")) {
+    body.response_format = "verbose_json";
+    body.timestamp_granularities = ["word", "segment"];
+  }
   if (prompt) body.prompt = prompt;
 
   const json = await openrouterFetch("https://openrouter.ai/api/v1/audio/transcriptions", body);
@@ -193,6 +269,15 @@ async function openrouterFetch(url: string, body: unknown): Promise<Record<strin
 function isWrongEndpointError(err: Error): boolean {
   const msg = err.message.toLowerCase();
   if (!msg.includes("400") && !msg.includes("404")) return false;
-  const markers = ["does not exist", "not a valid", "no endpoints", "not support", "no allowed providers"];
+  const markers = [
+    "does not exist",
+    "not a valid",
+    "no endpoints",
+    "not support",
+    "no allowed providers",
+    "input_audio",
+    "invalid_value",
+    "unsupported",
+  ];
   return markers.some((m) => msg.includes(m));
 }
