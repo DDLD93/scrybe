@@ -11,8 +11,8 @@ import { useTranscribeJobs } from "@/hooks/use-transcribe-jobs";
 import { cn } from "@/lib/utils";
 
 export default function TranscribePage() {
-  const { jobs, loading, refresh, hasActiveJobs } = useTranscribeJobs();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { jobs, loading, refresh, hasActiveJobs } = useTranscribeJobs(2000, dialogOpen);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

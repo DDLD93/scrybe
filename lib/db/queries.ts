@@ -142,6 +142,15 @@ export async function updateTranscribeJob(
     .where(eq(transcribeJobs.id, id));
 }
 
+export async function deleteTranscribeJob(id: string): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .delete(transcribeJobs)
+    .where(eq(transcribeJobs.id, id))
+    .returning({ id: transcribeJobs.id });
+  return rows.length > 0;
+}
+
 export async function upsertTranscribeChunk(data: {
   id: string;
   jobId: string;

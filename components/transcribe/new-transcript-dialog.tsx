@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   IconCloudUpload,
   IconLink,
@@ -97,11 +97,15 @@ export function NewTranscriptDialog({
     init();
   }, [open]);
 
-  const grouped = models.reduce<Record<string, Model[]>>((acc, m) => {
-    const provider = m.id.split("/")[0] ?? "other";
-    (acc[provider] ??= []).push(m);
-    return acc;
-  }, {});
+  const grouped = useMemo(
+    () =>
+      models.reduce<Record<string, Model[]>>((acc, m) => {
+        const provider = m.id.split("/")[0] ?? "other";
+        (acc[provider] ??= []).push(m);
+        return acc;
+      }, {}),
+    [models],
+  );
 
   const handleFile = useCallback((f: File | null) => {
     setFile(f);
@@ -365,7 +369,7 @@ type FormFieldsProps = {
   disabled?: boolean;
 };
 
-function FormFields({
+const FormFields = memo(function FormFields({
   unit,
   setUnit,
   size,
@@ -377,6 +381,14 @@ function FormFields({
   grouped,
   disabled,
 }: FormFieldsProps) {
+  const modelOptions = useMemo(
+    () =>
+      Object.entries(grouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([provider, items]) => ({ provider, items })),
+    [grouped],
+  );
+
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -410,19 +422,17 @@ function FormFields({
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select model" />
           </SelectTrigger>
-          <SelectContent>
-            {Object.entries(grouped)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([provider, items]) => (
-                <SelectGroup key={provider}>
-                  <SelectLabel>{provider}</SelectLabel>
-                  {items.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))}
+          <SelectContent position="popper" className="max-h-64">
+            {modelOptions.map(({ provider, items }) => (
+              <SelectGroup key={provider}>
+                <SelectLabel>{provider}</SelectLabel>
+                {items.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -443,4 +453,4 @@ function FormFields({
       </div>
     </>
   );
-}
+});

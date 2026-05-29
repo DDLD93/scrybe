@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   IconDotsVertical,
   IconExternalLink,
@@ -9,6 +10,7 @@ import {
   IconPlayerPlay,
   IconPlayerStop,
   IconRefresh,
+  IconTrash,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -45,6 +47,7 @@ type TranscriptsTableProps = {
 
 export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
   const router = useRouter();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleResume(jobId: string) {
     const res = await fetch(`/api/transcribe/jobs/${jobId}/resume`, { method: "POST" });
@@ -65,6 +68,27 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
     } else {
       const data = await res.json();
       toast.error(data.error ?? "Failed to stop");
+    }
+  }
+
+  async function handleDelete(job: TranscribeJob) {
+    const confirmed = window.confirm(
+      `Delete "${job.filename}"?\n\nThis permanently removes the job, audio, transcript, and all stored files.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(job.id);
+    try {
+      const res = await fetch(`/api/transcribe/jobs/${job.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Job deleted");
+        onRefresh();
+      } else {
+        const data = await res.json();
+        toast.error(data.error ?? "Failed to delete");
+      }
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -194,6 +218,15 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
                           <IconExternalLink className="size-3.5" />
                           View JSON
                         </a>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        disabled={deletingId === job.id}
+                        onClick={() => handleDelete(job)}
+                      >
+                        <IconTrash className="size-3.5" />
+                        Delete job
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

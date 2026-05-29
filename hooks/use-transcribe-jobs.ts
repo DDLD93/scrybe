@@ -12,7 +12,7 @@ export type TranscribeJob = {
   error?: string | null;
 };
 
-export function useTranscribeJobs(pollMs = 2000) {
+export function useTranscribeJobs(pollMs = 2000, paused = false) {
   const [jobs, setJobs] = useState<TranscribeJob[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,9 +30,13 @@ export function useTranscribeJobs(pollMs = 2000) {
 
   useEffect(() => {
     refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (paused) return;
     const t = setInterval(refresh, pollMs);
     return () => clearInterval(t);
-  }, [refresh, pollMs]);
+  }, [refresh, pollMs, paused]);
 
   const hasActiveJobs = jobs.some((j) =>
     ["pending", "chunking", "processing"].includes(j.status),
