@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   integer,
   jsonb,
   numeric,
@@ -52,6 +53,7 @@ export const transcribeJobs = pgTable("transcribe_jobs", {
   playbackContentType: text("playback_content_type"),
   durationSec: numeric("duration_sec", { precision: 12, scale: 4 }),
   transcriptKey: text("transcript_key"),
+  hasWordTimings: boolean("has_word_timings").notNull().default(false),
   language: text("language"),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

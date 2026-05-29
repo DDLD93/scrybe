@@ -7,6 +7,7 @@ import {
   IconDotsVertical,
   IconExternalLink,
   IconFileText,
+  IconHighlight,
   IconPlayerPlay,
   IconPlayerStop,
   IconRefresh,
@@ -98,6 +99,7 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border/50">
             <TableHead className="w-[35%]">File</TableHead>
+            <TableHead className="w-10" />
             <TableHead>Model</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="w-[20%]">Progress</TableHead>
@@ -115,6 +117,10 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
             const isActive = ["pending", "chunking", "processing"].includes(job.status);
             const canOpen = job.status === "completed";
 
+            function openPlayer() {
+              if (canOpen) router.push(`/transcribe/${job.id}`);
+            }
+
             return (
               <TableRow
                 key={job.id}
@@ -122,14 +128,35 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
                   "border-border/30 transition-colors",
                   canOpen && "cursor-pointer hover:bg-primary/5",
                 )}
-                onClick={() => {
-                  if (canOpen) router.push(`/transcribe/${job.id}`);
+                tabIndex={canOpen ? 0 : undefined}
+                role={canOpen ? "button" : undefined}
+                title={canOpen ? "Open player" : undefined}
+                onClick={openPlayer}
+                onKeyDown={(e) => {
+                  if (canOpen && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    openPlayer();
+                  }
                 }}
               >
                 <TableCell className="font-mono text-xs max-w-0">
                   <span className="block truncate" title={job.filename}>
                     {job.filename}
                   </span>
+                </TableCell>
+                <TableCell>
+                  {job.hasWordTimings && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex text-primary" aria-label="Word highlight during playback">
+                          <IconHighlight className="size-3.5" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">
+                        Word highlight during playback
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary" className="font-mono text-[0.65rem] font-normal">

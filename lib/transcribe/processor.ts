@@ -158,6 +158,7 @@ export async function processTranscribeJob(jobId: string): Promise<void> {
       status: "completed",
       resultKey,
       completedChunks: allChunks.length,
+      hasWordTimings: words.length > 0,
       error: null,
     });
     clearTranscribeStop(jobId);

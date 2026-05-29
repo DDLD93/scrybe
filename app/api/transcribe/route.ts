@@ -11,10 +11,23 @@ import { putFile } from "@/lib/storage/s3";
 import { enqueue } from "@/lib/worker/queue";
 import { accepted, error, handleRoute, json } from "@/lib/api";
 
+function toJobSummary(job: Awaited<ReturnType<typeof listTranscribeJobs>>[number]) {
+  return {
+    id: job.id,
+    filename: job.filename,
+    model: job.model,
+    status: job.status,
+    totalChunks: job.totalChunks,
+    completedChunks: job.completedChunks,
+    error: job.error,
+    hasWordTimings: job.hasWordTimings,
+  };
+}
+
 export async function GET() {
   return handleRoute(async () => {
     const jobs = await listTranscribeJobs(200);
-    return json({ jobs });
+    return json({ jobs: jobs.map(toJobSummary) });
   });
 }
 

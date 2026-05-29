@@ -9,6 +9,7 @@ export type TranscribeJob = {
   status: string;
   totalChunks: number;
   completedChunks: number;
+  hasWordTimings: boolean;
   error?: string | null;
 };
 
