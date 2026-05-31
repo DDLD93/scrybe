@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
-import { IconArrowLeft, IconDownload } from "@tabler/icons-react";
+import { IconArrowLeft, IconDownload, IconPencil } from "@tabler/icons-react";
+import { toast } from "sonner";
 import { AudioPlayerCompact } from "@/components/transcribe/audio-player-compact";
 import {
   TranscriptPanel,
@@ -26,6 +27,9 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   const [filename, setFilename] = useState("");
   const [words, setWords] = useState<TranscriptWord[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [draftSegments, setDraftSegments] = useState<TranscriptSegment[]>([]);
+  const [saving, setSaving] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -68,7 +72,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
       const idx = findWordIndex(words, t);
       if (idx !== activeIdx) {
         setActiveIdx(idx);
-        if (idx >= 0 && transcriptRef.current) {
+        if (!editMode && idx >= 0 && transcriptRef.current) {
           const el = transcriptRef.current.querySelector(`[data-idx="${idx}"]`);
           el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
         }
@@ -97,7 +101,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
     };
-  }, [words, activeIdx]);
+  }, [words, activeIdx, editMode]);
 
   function seekTo(time: number) {
     const audio = audioRef.current;
@@ -116,6 +120,49 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
     if (audioRef.current) audioRef.current.playbackRate = r;
   }
 
+  function enterEditMode() {
+    setDraftSegments(segments.map((s) => ({ ...s })));
+    setEditMode(true);
+  }
+
+  function cancelEdit() {
+    setDraftSegments([]);
+    setEditMode(false);
+  }
+
+  function handleSegmentChange(id: number, text: string) {
+    setDraftSegments((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, text } : s)),
+    );
+  }
+
+  async function saveEdit() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/transcribe/jobs/${jobId}/transcript`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          segments: draftSegments.map(({ id, text }) => ({ id, text })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to save transcript");
+        return;
+      }
+      setWords(data.words ?? []);
+      setSegments(data.segments ?? []);
+      setEditMode(false);
+      setDraftSegments([]);
+      toast.success("Transcript saved");
+    } catch {
+      toast.error("Failed to save transcript");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const playerProps = {
     playing,
     currentTime,
@@ -127,6 +174,8 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
     onSeek: seekTo,
     onRateChange: handleRateChange,
   };
+
+  const canEdit = !loading && !error && segments.length > 0;
 
   return (
     <div className="flex h-[calc(100dvh-7.5rem)] flex-col overflow-hidden animate-in fade-in duration-500 md:h-[calc(100dvh-4rem)]">
@@ -156,26 +205,44 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
           </div>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">
-              <IconDownload className="size-3.5" />
-              Export
+        <div className="flex shrink-0 items-center gap-2">
+          {editMode ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={saving}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={saveEdit} disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={enterEditMode} disabled={!canEdit}>
+              <IconPencil className="size-3.5" />
+              Edit
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <a href={`/api/transcribe/jobs/${jobId}/transcript`} download>
-                Download JSON
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <a href={`/api/transcribe/jobs/${jobId}/result`}>
-                Download Markdown
-              </a>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <IconDownload className="size-3.5" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <a href={`/api/transcribe/jobs/${jobId}/transcript`} download>
+                  Download JSON
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={`/api/transcribe/jobs/${jobId}/result`}>
+                  Download Markdown
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
 
       {error && (
@@ -189,10 +256,13 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
           <TranscriptPanel
             transcriptRef={transcriptRef}
             loading={loading}
+            mode={editMode ? "edit" : "view"}
             words={words}
             segments={segments}
+            draftSegments={draftSegments}
             activeIdx={activeIdx}
             onSeek={seekTo}
+            onSegmentChange={handleSegmentChange}
             className="flex-1"
           />
         </div>

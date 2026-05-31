@@ -2,6 +2,7 @@
 
 import type { RefObject } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 export type TranscriptWord = { word: string; start: number; end: number };
@@ -15,22 +16,30 @@ export type TranscriptSegment = {
 type TranscriptPanelProps = {
   transcriptRef: RefObject<HTMLDivElement | null>;
   loading: boolean;
+  mode?: "view" | "edit";
   words: TranscriptWord[];
   segments: TranscriptSegment[];
+  draftSegments?: TranscriptSegment[];
   activeIdx: number;
   onSeek: (time: number) => void;
+  onSegmentChange?: (id: number, text: string) => void;
   className?: string;
 };
 
 export function TranscriptPanel({
   transcriptRef,
   loading,
+  mode = "view",
   words,
   segments,
+  draftSegments,
   activeIdx,
   onSeek,
+  onSegmentChange,
   className,
 }: TranscriptPanelProps) {
+  const editSegments = draftSegments ?? segments;
+
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       {loading ? (
@@ -50,10 +59,30 @@ export function TranscriptPanel({
           <div
             className={cn(
               "mx-auto max-w-3xl px-5 pt-8 pb-4 md:px-8 md:pt-10",
-              "text-base leading-relaxed text-muted-foreground md:text-lg md:leading-loose",
+              mode === "view" &&
+                "text-base leading-relaxed text-muted-foreground md:text-lg md:leading-loose",
             )}
           >
-            {words.length > 0 ? (
+            {mode === "edit" ? (
+              editSegments.length > 0 ? (
+                <div className="space-y-4">
+                  {editSegments.map((s) => (
+                    <div key={s.id} className="space-y-2">
+                      <span className="inline-block font-mono text-xs tabular-nums text-muted-foreground/60 md:text-sm">
+                        {fmtTime(s.start)}
+                      </span>
+                      <Textarea
+                        value={s.text}
+                        onChange={(e) => onSegmentChange?.(s.id, e.target.value)}
+                        className="min-h-20 text-base leading-relaxed md:text-lg md:leading-loose"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No transcript available.</p>
+              )
+            ) : words.length > 0 ? (
               words.map((w, i) => (
                 <span
                   key={`${i}-${w.start}`}

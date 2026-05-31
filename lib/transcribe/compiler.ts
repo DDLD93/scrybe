@@ -121,6 +121,56 @@ function fmtTime(sec: number): string {
   return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
 
+function distributeWordsInRange(tokens: string[], start: number, end: number): TranscriptWord[] {
+  if (tokens.length === 0) return [];
+  const span = Math.max(end - start, 0.01);
+  const step = span / tokens.length;
+  return tokens.map((word, i) => ({
+    word,
+    start: start + i * step,
+    end: start + (i + 1) * step,
+  }));
+}
+
+function reconcileSegmentWords(
+  oldSlice: TranscriptWord[],
+  newText: string,
+  start: number,
+  end: number,
+): TranscriptWord[] {
+  const tokens = newText.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return [];
+  if (tokens.length === oldSlice.length) {
+    return tokens.map((word, i) => ({ ...oldSlice[i], word }));
+  }
+  return distributeWordsInRange(tokens, start, end);
+}
+
+export function applySegmentEdits(
+  existing: CompiledTranscript,
+  edits: Array<{ id: number; text: string }>,
+): CompiledTranscript {
+  const editMap = new Map(edits.map((e) => [e.id, e.text]));
+  const segments = existing.segments.map((seg) => ({
+    ...seg,
+    text: editMap.has(seg.id) ? editMap.get(seg.id)!.trim() : seg.text,
+  }));
+
+  if (existing.words.length === 0) {
+    const duration = segments.length ? segments[segments.length - 1].end : 0;
+    return { ...existing, segments, duration };
+  }
+
+  const reconciledWords: TranscriptWord[] = [];
+  for (const seg of segments) {
+    const oldSlice = existing.words.slice(seg.wordStartIdx, seg.wordEndIdx + 1);
+    const sliceWords = reconcileSegmentWords(oldSlice, seg.text, seg.start, seg.end);
+    reconciledWords.push(...sliceWords);
+  }
+
+  return compileFromWords(reconciledWords, existing.language);
+}
+
 export function markdownFromTranscript(t: CompiledTranscript, filename: string, model: string): string {
   const lines = [
     `# Transcription: ${filename}`,
