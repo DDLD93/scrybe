@@ -14,6 +14,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
+import { DeleteJobDialog } from "@/components/transcribe/delete-job-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ type TranscriptsTableProps = {
 export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<TranscribeJob | null>(null);
 
   async function handleResume(jobId: string) {
     const res = await fetch(`/api/transcribe/jobs/${jobId}/resume`, { method: "POST" });
@@ -72,17 +74,15 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
     }
   }
 
-  async function handleDelete(job: TranscribeJob) {
-    const confirmed = window.confirm(
-      `Delete "${job.filename}"?\n\nThis permanently removes the job, audio, transcript, and all stored files.`,
-    );
-    if (!confirmed) return;
+  async function confirmDelete() {
+    if (!jobToDelete) return;
 
-    setDeletingId(job.id);
+    setDeletingId(jobToDelete.id);
     try {
-      const res = await fetch(`/api/transcribe/jobs/${job.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/transcribe/jobs/${jobToDelete.id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Job deleted");
+        setJobToDelete(null);
         onRefresh();
       } else {
         const data = await res.json();
@@ -94,12 +94,21 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
   }
 
   return (
+    <>
+    <DeleteJobDialog
+      job={jobToDelete}
+      deleting={deletingId !== null}
+      onOpenChange={(open) => {
+        if (!open && deletingId === null) setJobToDelete(null);
+      }}
+      onConfirm={confirmDelete}
+    />
     <div className="glass-card overflow-hidden rounded-xl ring-1 ring-border/50">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border/50">
             <TableHead className="w-[35%]">File</TableHead>
-            <TableHead className="w-10" />
+            <TableHead className="w-28">Word timing</TableHead>
             <TableHead>Model</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="w-[20%]">Progress</TableHead>
@@ -145,17 +154,23 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
                   </span>
                 </TableCell>
                 <TableCell>
-                  {job.hasWordTimings && (
+                  {job.hasWordTimings ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="inline-flex text-primary" aria-label="Word highlight during playback">
-                          <IconHighlight className="size-3.5" />
-                        </span>
+                        <Badge
+                          variant="secondary"
+                          className="gap-1 font-normal text-primary"
+                        >
+                          <IconHighlight className="size-3" />
+                          Yes
+                        </Badge>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
                         Word highlight during playback
                       </TooltipContent>
                     </Tooltip>
+                  ) : (
+                    <span className="text-[0.65rem] text-muted-foreground">—</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -250,7 +265,7 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
                       <DropdownMenuItem
                         variant="destructive"
                         disabled={deletingId === job.id}
-                        onClick={() => handleDelete(job)}
+                        onClick={() => setJobToDelete(job)}
                       >
                         <IconTrash className="size-3.5" />
                         Delete job
@@ -264,5 +279,6 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
         </TableBody>
       </Table>
     </div>
+    </>
   );
 }

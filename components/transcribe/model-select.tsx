@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck, IconSearch, IconSelector } from "@tabler/icons-react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -19,6 +19,11 @@ function modelLabel(model: ModelOption) {
   return model.name === model.id ? model.id : `${model.name} (${model.id})`;
 }
 
+/** Keep wheel/touch scroll inside the list when nested in a modal dialog. */
+function stopScrollPropagation(e: React.WheelEvent | React.TouchEvent) {
+  e.stopPropagation();
+}
+
 export const ModelSelect = memo(function ModelSelect({
   models,
   value,
@@ -27,6 +32,7 @@ export const ModelSelect = memo(function ModelSelect({
 }: ModelSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const selectedRef = useRef<HTMLButtonElement>(null);
 
   const selected = useMemo(
     () => models.find((m) => m.id === value),
@@ -53,8 +59,19 @@ export const ModelSelect = memo(function ModelSelect({
   const providerCount = Object.keys(filtered).length;
   const resultCount = Object.values(filtered).reduce((n, items) => n + items.length, 0);
 
+  const scrollToSelected = useCallback(() => {
+    selectedRef.current?.scrollIntoView({ block: "nearest" });
+  }, []);
+
+  useEffect(() => {
+    if (!open || query.trim()) return;
+    const frame = requestAnimationFrame(scrollToSelected);
+    return () => cancelAnimationFrame(frame);
+  }, [open, query, value, filtered, scrollToSelected]);
+
   return (
     <Popover
+      modal
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
@@ -76,7 +93,12 @@ export const ModelSelect = memo(function ModelSelect({
           <IconSelector className="size-3.5 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
+      <PopoverContent
+        align="start"
+        className="z-[100] w-[var(--radix-popover-trigger-width)] p-0"
+        onWheel={stopScrollPropagation}
+        onTouchMove={stopScrollPropagation}
+      >
         <div className="border-b border-border/50 p-2">
           <div className="relative">
             <IconSearch className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -89,7 +111,11 @@ export const ModelSelect = memo(function ModelSelect({
             />
           </div>
         </div>
-        <div className="max-h-64 overflow-y-auto p-1">
+        <div
+          className="max-h-64 overflow-y-auto overscroll-contain touch-pan-y p-1"
+          onWheel={stopScrollPropagation}
+          onTouchMove={stopScrollPropagation}
+        >
           {resultCount === 0 ? (
             <p className="px-2 py-4 text-center text-xs text-muted-foreground">
               No models match &ldquo;{query.trim()}&rdquo;
@@ -105,6 +131,7 @@ export const ModelSelect = memo(function ModelSelect({
                     return (
                       <button
                         key={m.id}
+                        ref={active ? selectedRef : undefined}
                         type="button"
                         className={cn(
                           "relative flex w-full cursor-default items-center rounded-md px-2 py-1.5 pr-7 text-left text-xs/relaxed outline-hidden select-none hover:bg-accent hover:text-accent-foreground",

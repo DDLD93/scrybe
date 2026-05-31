@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconDownload, IconMicrophone } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 const NAV_ITEMS = [
   { href: "/download", label: "Download", icon: IconDownload },
@@ -21,7 +22,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex size-7 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
             <span className="text-xs font-bold text-primary">S</span>
           </div>
-          <span className="text-sm font-semibold tracking-tight text-foreground">Scrybe</span>
+          <span className="flex-1 text-sm font-semibold tracking-tight text-foreground">Scrybe</span>
+          <ThemeToggle />
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -52,6 +54,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <div className="flex min-h-screen flex-1 flex-col pb-16 md:pb-0">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 bg-card/30 px-4 backdrop-blur-xl md:hidden">
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
+              <span className="text-xs font-bold text-primary">S</span>
+            </div>
+            <span className="text-sm font-semibold tracking-tight text-foreground">Scrybe</span>
+          </div>
+          <ThemeToggle />
+        </header>
         <main className="flex-1 p-4 md:p-8">{children}</main>
       </div>
 

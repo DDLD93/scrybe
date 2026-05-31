@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`dark h-full ${inter.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`h-full ${inter.variable}`} suppressHydrationWarning>
       <body className="min-h-full font-sans">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <TooltipProvider>

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
+import { IconArrowLeft, IconDownload } from "@tabler/icons-react";
+import { AudioPlayerCompact } from "@/components/transcribe/audio-player-compact";
 import {
-  IconArrowLeft,
-  IconDownload,
-  IconPlayerPause,
-  IconPlayerPlay,
-} from "@tabler/icons-react";
+  TranscriptPanel,
+  type TranscriptSegment,
+  type TranscriptWord,
+} from "@/components/transcribe/transcript-panel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,18 +18,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-
-type Word = { word: string; start: number; end: number };
-type Segment = { id: number; start: number; end: number; text: string };
 
 export default function PlayerPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = use(params);
   const audioRef = useRef<HTMLAudioElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [filename, setFilename] = useState("");
-  const [words, setWords] = useState<Word[]>([]);
-  const [segments, setSegments] = useState<Segment[]>([]);
+  const [words, setWords] = useState<TranscriptWord[]>([]);
+  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -114,9 +111,33 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
     else audio.pause();
   }
 
+  function handleRateChange(r: number) {
+    setRate(r);
+    if (audioRef.current) audioRef.current.playbackRate = r;
+  }
+
+  const playerProps = {
+    playing,
+    currentTime,
+    duration,
+    rate,
+    segments,
+    loading,
+    onTogglePlay: togglePlay,
+    onSeek: seekTo,
+    onRateChange: handleRateChange,
+  };
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between gap-4">
+    <div className="flex h-[calc(100dvh-7.5rem)] flex-col overflow-hidden animate-in fade-in duration-500 md:h-[calc(100dvh-4rem)]">
+      <audio
+        ref={audioRef}
+        src={`/api/transcribe/jobs/${jobId}/audio`}
+        preload="metadata"
+        className="hidden"
+      />
+
+      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/40 pb-3">
         <div className="flex min-w-0 items-center gap-3">
           <Button variant="ghost" size="icon-sm" asChild>
             <Link href="/transcribe">
@@ -126,9 +147,9 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
           </Button>
           <div className="min-w-0">
             {loading ? (
-              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-6 w-48" />
             ) : (
-              <h1 className="truncate text-base font-semibold text-foreground">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-foreground">
                 {filename || jobId}
               </h1>
             )}
@@ -137,7 +158,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button variant="ghost" size="sm">
               <IconDownload className="size-3.5" />
               Export
             </Button>
@@ -155,135 +176,38 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      </header>
 
       {error && (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
+        <Card className="mt-3 shrink-0 border-destructive/30 bg-destructive/5">
+          <CardContent className="py-3 text-sm text-destructive">{error}</CardContent>
         </Card>
       )}
 
-      <Card className="glass-card ring-1 ring-border/50">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Audio Player</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <audio
-            ref={audioRef}
-            src={`/api/transcribe/jobs/${jobId}/audio`}
-            preload="metadata"
+      <div className="mt-4 flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[1fr_16rem] md:gap-6">
+        <div className="glass-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl ring-1 ring-border/50">
+          <TranscriptPanel
+            transcriptRef={transcriptRef}
+            loading={loading}
+            words={words}
+            segments={segments}
+            activeIdx={activeIdx}
+            onSeek={seekTo}
+            className="flex-1"
           />
+        </div>
 
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" onClick={togglePlay} disabled={loading}>
-              {playing ? (
-                <IconPlayerPause className="size-4" />
-              ) : (
-                <IconPlayerPlay className="size-4" />
-              )}
-            </Button>
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {fmt(currentTime)} / {fmt(duration)}
-            </span>
-            <select
-              value={rate}
-              onChange={(e) => {
-                const r = parseFloat(e.target.value);
-                setRate(r);
-                if (audioRef.current) audioRef.current.playbackRate = r;
-              }}
-              className="ml-auto rounded-md border border-input bg-input/20 px-2 py-1 text-xs text-foreground"
-            >
-              {[0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => (
-                <option key={r} value={r}>
-                  {r}x
-                </option>
-              ))}
-            </select>
-          </div>
+        <aside className="hidden min-h-0 md:block">
+          <AudioPlayerCompact variant="sidebar" {...playerProps} />
+        </aside>
+      </div>
 
-          <div className="relative">
-            <input
-              type="range"
-              min={0}
-              max={duration || 1}
-              step={0.01}
-              value={currentTime}
-              onChange={(e) => seekTo(parseFloat(e.target.value))}
-              className="relative z-10 w-full accent-primary"
-            />
-            {segments.length > 0 && duration > 0 && (
-              <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded bg-muted">
-                {segments.map((s) => (
-                  <div
-                    key={s.id}
-                    className="absolute top-0 w-px h-full bg-border"
-                    style={{ left: `${(s.start / duration) * 100}%` }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="glass-card ring-1 ring-border/50">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Transcript</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-full" />
-              ))}
-            </div>
-          ) : (
-            <div
-              ref={transcriptRef}
-              className="transcript-scroll max-h-[28rem] overflow-y-auto text-sm leading-relaxed text-muted-foreground"
-            >
-              {words.length > 0 ? (
-                words.map((w, i) => (
-                  <span
-                    key={`${i}-${w.start}`}
-                    data-idx={i}
-                    onClick={() => seekTo(w.start)}
-                    className={cn(
-                      "mr-1 cursor-pointer rounded px-0.5 transition-colors",
-                      i === activeIdx
-                        ? "bg-primary/30 text-foreground ring-1 ring-primary/50 shadow-[0_0_12px_-2px] shadow-primary/40"
-                        : "hover:text-foreground",
-                    )}
-                  >
-                    {w.word}
-                  </span>
-                ))
-              ) : segments.length > 0 ? (
-                segments.map((s) => (
-                  <p
-                    key={s.id}
-                    onClick={() => seekTo(s.start)}
-                    className="mb-3 cursor-pointer rounded px-1 transition-colors hover:text-foreground"
-                  >
-                    <span className="mr-2 text-xs tabular-nums text-muted-foreground/70">
-                      {fmt(s.start)}
-                    </span>
-                    {s.text}
-                  </p>
-                ))
-              ) : (
-                <p>No transcript available.</p>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <AudioPlayerCompact variant="dock" className="md:hidden" {...playerProps} />
     </div>
   );
 }
 
-function findWordIndex(words: Word[], t: number): number {
+function findWordIndex(words: TranscriptWord[], t: number): number {
   let lo = 0;
   let hi = words.length - 1;
   let result = -1;
@@ -298,11 +222,4 @@ function findWordIndex(words: Word[], t: number): number {
   }
   if (result >= 0 && t < words[result].end) return result;
   return -1;
-}
-
-function fmt(sec: number): string {
-  if (!Number.isFinite(sec)) return "00:00";
-  const s = Math.floor(sec);
-  const m = Math.floor(s / 60);
-  return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }

@@ -29,6 +29,8 @@ export const config = {
   },
 
   openrouterApiKey: env("OPENROUTER_API_KEY"),
+  /** Optional — when set, Whisper models use OpenAI's transcription API for word-level timestamps. */
+  openaiApiKey: env("OPENAI_API_KEY"),
 
   ytdlpPath: env("YTDLP_PATH", "yt-dlp")!,
   ffmpegPath: env("FFMPEG_PATH", "ffmpeg")!,
