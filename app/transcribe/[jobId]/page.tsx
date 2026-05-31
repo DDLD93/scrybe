@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { AudioPlayerCompact } from "@/components/transcribe/audio-player-compact";
@@ -23,6 +23,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [draftSegments, setDraftSegments] = useState<TranscriptSegment[]>([]);
+  const [focusSegmentId, setFocusSegmentId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [currentTime, setCurrentTime] = useState(0);
@@ -114,13 +115,15 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
     if (audioRef.current) audioRef.current.playbackRate = r;
   }
 
-  function enterEditMode() {
+  function enterEditMode(segmentId?: number) {
     setDraftSegments(segments.map((s) => ({ ...s })));
+    setFocusSegmentId(segmentId ?? null);
     setEditMode(true);
   }
 
   function cancelEdit() {
     setDraftSegments([]);
+    setFocusSegmentId(null);
     setEditMode(false);
   }
 
@@ -149,6 +152,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
       setSegments(data.segments ?? []);
       setEditMode(false);
       setDraftSegments([]);
+      setFocusSegmentId(null);
       toast.success("Transcript saved");
     } catch {
       toast.error("Failed to save transcript");
@@ -170,6 +174,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   };
 
   const canEdit = !loading && !error && segments.length > 0;
+  const handleFocusSegmentHandled = useCallback(() => setFocusSegmentId(null), []);
 
   return (
     <div className="flex h-[calc(100dvh-7.5rem)] flex-col overflow-hidden animate-in fade-in duration-500 md:h-[calc(100dvh-4rem)]">
@@ -216,12 +221,14 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
             mode={editMode ? "edit" : "view"}
             saving={saving}
             canEdit={canEdit}
+            focusSegmentId={focusSegmentId}
             words={words}
             segments={segments}
             draftSegments={draftSegments}
             activeIdx={activeIdx}
             onSeek={seekTo}
             onEnterEdit={enterEditMode}
+            onFocusSegmentHandled={handleFocusSegmentHandled}
             onCancelEdit={cancelEdit}
             onSaveEdit={saveEdit}
             onSegmentChange={handleSegmentChange}
