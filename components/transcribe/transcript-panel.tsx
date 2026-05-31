@@ -168,7 +168,7 @@ export function TranscriptPanel({
               </Button>
             </>
           ) : (
-            <Button variant="ghost" size="sm" onClick={onEnterEdit} disabled={!canEdit}>
+            <Button variant="ghost" size="sm" onClick={() => onEnterEdit?.()} disabled={!canEdit}>
               <IconPencil className="size-3.5" />
               Edit
             </Button>
