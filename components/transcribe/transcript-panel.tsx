@@ -1,6 +1,14 @@
 "use client";
 
 import type { RefObject } from "react";
+import { IconDownload, IconPencil } from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -15,33 +23,87 @@ export type TranscriptSegment = {
 
 type TranscriptPanelProps = {
   transcriptRef: RefObject<HTMLDivElement | null>;
+  jobId: string;
   loading: boolean;
   mode?: "view" | "edit";
+  saving?: boolean;
+  canEdit?: boolean;
   words: TranscriptWord[];
   segments: TranscriptSegment[];
   draftSegments?: TranscriptSegment[];
   activeIdx: number;
   onSeek: (time: number) => void;
+  onEnterEdit?: () => void;
+  onCancelEdit?: () => void;
+  onSaveEdit?: () => void;
   onSegmentChange?: (id: number, text: string) => void;
   className?: string;
 };
 
 export function TranscriptPanel({
   transcriptRef,
+  jobId,
   loading,
   mode = "view",
+  saving = false,
+  canEdit = false,
   words,
   segments,
   draftSegments,
   activeIdx,
   onSeek,
+  onEnterEdit,
+  onCancelEdit,
+  onSaveEdit,
   onSegmentChange,
   className,
 }: TranscriptPanelProps) {
   const editSegments = draftSegments ?? segments;
+  const isEditMode = mode === "edit";
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+      {!loading && (
+        <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border/40 px-5 py-2 md:px-6">
+          {isEditMode ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={onCancelEdit} disabled={saving}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={onSaveEdit} disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={onEnterEdit} disabled={!canEdit}>
+              <IconPencil className="size-3.5" />
+              Edit
+            </Button>
+          )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <IconDownload className="size-3.5" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <a href={`/api/transcribe/jobs/${jobId}/transcript`} download>
+                  Download JSON
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={`/api/transcribe/jobs/${jobId}/result`}>
+                  Download Markdown
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-3 px-5 py-8 md:px-8 md:py-10">
           {Array.from({ length: 8 }).map((_, i) => (

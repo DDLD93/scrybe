@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
-import { IconArrowLeft, IconDownload, IconPencil } from "@tabler/icons-react";
+import { IconArrowLeft } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { AudioPlayerCompact } from "@/components/transcribe/audio-player-compact";
 import {
@@ -12,12 +12,6 @@ import {
 } from "@/components/transcribe/transcript-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PlayerPage({ params }: { params: Promise<{ jobId: string }> }) {
@@ -205,44 +199,6 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          {editMode ? (
-            <>
-              <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={saving}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={saveEdit} disabled={saving}>
-                {saving ? "Saving…" : "Save"}
-              </Button>
-            </>
-          ) : (
-            <Button variant="ghost" size="sm" onClick={enterEditMode} disabled={!canEdit}>
-              <IconPencil className="size-3.5" />
-              Edit
-            </Button>
-          )}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <IconDownload className="size-3.5" />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <a href={`/api/transcribe/jobs/${jobId}/transcript`} download>
-                  Download JSON
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href={`/api/transcribe/jobs/${jobId}/result`}>
-                  Download Markdown
-                </a>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </header>
 
       {error && (
@@ -255,13 +211,19 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
         <div className="glass-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl ring-1 ring-border/50">
           <TranscriptPanel
             transcriptRef={transcriptRef}
+            jobId={jobId}
             loading={loading}
             mode={editMode ? "edit" : "view"}
+            saving={saving}
+            canEdit={canEdit}
             words={words}
             segments={segments}
             draftSegments={draftSegments}
             activeIdx={activeIdx}
             onSeek={seekTo}
+            onEnterEdit={enterEditMode}
+            onCancelEdit={cancelEdit}
+            onSaveEdit={saveEdit}
             onSegmentChange={handleSegmentChange}
             className="flex-1"
           />
