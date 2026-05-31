@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { applyHausaOrthographyKey } from "@/lib/transcribe/hausa-orthography";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,9 @@ type TranscriptPanelProps = {
   mode?: "view" | "edit";
   saving?: boolean;
   canEdit?: boolean;
+  autoSaveEnabled?: boolean;
+  onAutoSaveChange?: (enabled: boolean) => void;
+  lastSavedLabel?: string | null;
   focusSegmentId?: number | null;
   words: TranscriptWord[];
   segments: TranscriptSegment[];
@@ -52,6 +56,9 @@ export function TranscriptPanel({
   mode = "view",
   saving = false,
   canEdit = false,
+  autoSaveEnabled = true,
+  onAutoSaveChange,
+  lastSavedLabel = null,
   focusSegmentId = null,
   words,
   segments,
@@ -157,43 +164,68 @@ export function TranscriptPanel({
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       {!loading && (
-        <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border/40 px-5 py-2 md:px-6">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/40 px-5 py-2 md:px-6">
           {isEditMode ? (
-            <>
-              <Button variant="ghost" size="sm" onClick={onCancelEdit} disabled={saving}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={onSaveEdit} disabled={saving}>
-                {saving ? "Saving…" : "Save"}
-              </Button>
-            </>
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <Label className="cursor-pointer gap-2 text-xs font-normal text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={autoSaveEnabled}
+                  onChange={(e) => onAutoSaveChange?.(e.target.checked)}
+                  className="size-3.5 rounded border-input accent-primary"
+                />
+                Auto-save
+              </Label>
+              <span className="truncate text-xs text-muted-foreground">
+                {saving
+                  ? "Saving…"
+                  : lastSavedLabel
+                    ? `Saved ${lastSavedLabel}`
+                    : "Not saved yet"}
+              </span>
+            </div>
           ) : (
-            <Button variant="ghost" size="sm" onClick={() => onEnterEdit?.()} disabled={!canEdit}>
-              <IconPencil className="size-3.5" />
-              Edit
-            </Button>
+            <div className="flex-1" />
           )}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <IconDownload className="size-3.5" />
-                Export
+          <div className="flex shrink-0 items-center gap-2">
+            {isEditMode ? (
+              <>
+                <Button variant="ghost" size="sm" onClick={onCancelEdit} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={onSaveEdit} disabled={saving}>
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+              </>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => onEnterEdit?.()} disabled={!canEdit}>
+                <IconPencil className="size-3.5" />
+                Edit
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <a href={`/api/transcribe/jobs/${jobId}/transcript`} download>
-                  Download JSON
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href={`/api/transcribe/jobs/${jobId}/result`}>
-                  Download Markdown
-                </a>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <IconDownload className="size-3.5" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <a href={`/api/transcribe/jobs/${jobId}/transcript`} download>
+                    Download JSON
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href={`/api/transcribe/jobs/${jobId}/result`}>
+                    Download Markdown
+                  </a>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       )}
 

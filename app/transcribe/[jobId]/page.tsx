@@ -13,11 +13,33 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatSavedAgo } from "@/lib/format-relative-time";
+
+const AUTO_SAVE_STORAGE_KEY = "scrybe:transcript-autosave";
+const AUTO_SAVE_DEBOUNCE_MS = 1500;
+
+function serializeDraftBaseline(segs: TranscriptSegment[]): string {
+  return JSON.stringify(segs.map(({ id, text }) => ({ id, text })));
+}
+
+function readAutoSavePreference(): boolean {
+  if (typeof window === "undefined") return true;
+  const stored = localStorage.getItem(AUTO_SAVE_STORAGE_KEY);
+  return stored === null ? true : stored === "true";
+}
 
 export default function PlayerPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = use(params);
   const audioRef = useRef<HTMLAudioElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const draftSegmentsRef = useRef<TranscriptSegment[]>([]);
+  const saveBaselineRef = useRef("");
+  const savingRef = useRef(false);
+  const pendingResaveRef = useRef(false);
+  const saveTranscriptRef = useRef<
+    (opts?: { close?: boolean; silent?: boolean }) => Promise<boolean>
+  >(async () => false);
+
   const [filename, setFilename] = useState("");
   const [words, setWords] = useState<TranscriptWord[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
@@ -25,6 +47,9 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   const [draftSegments, setDraftSegments] = useState<TranscriptSegment[]>([]);
   const [focusSegmentId, setFocusSegmentId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(readAutoSavePreference);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [, setTick] = useState(0);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -32,6 +57,10 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    draftSegmentsRef.current = draftSegments;
+  }, [draftSegments]);
 
   useEffect(() => {
     async function load() {
@@ -98,6 +127,91 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
     };
   }, [words, activeIdx, editMode]);
 
+  useEffect(() => {
+    if (!editMode || !lastSavedAt) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [editMode, lastSavedAt]);
+
+  useEffect(() => {
+    saveTranscriptRef.current = async (opts?: { close?: boolean; silent?: boolean }) => {
+      if (savingRef.current) {
+        pendingResaveRef.current = true;
+        return false;
+      }
+
+      savingRef.current = true;
+      setSaving(true);
+
+      const segmentsToSave = draftSegmentsRef.current;
+
+      try {
+        const res = await fetch(`/api/transcribe/jobs/${jobId}/transcript`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            segments: segmentsToSave.map(({ id, text }) => ({ id, text })),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error ?? "Failed to save transcript");
+          return false;
+        }
+
+        const newSegments: TranscriptSegment[] = (data.segments ?? []).map(
+          (s: TranscriptSegment) => ({ ...s }),
+        );
+        setWords(data.words ?? []);
+        setSegments(newSegments);
+
+        if (opts?.close) {
+          setEditMode(false);
+          setDraftSegments([]);
+          setFocusSegmentId(null);
+          setLastSavedAt(null);
+          saveBaselineRef.current = serializeDraftBaseline(newSegments);
+        } else {
+          setDraftSegments(newSegments);
+          saveBaselineRef.current = serializeDraftBaseline(newSegments);
+          setLastSavedAt(new Date());
+        }
+
+        if (!opts?.silent) toast.success("Transcript saved");
+        return true;
+      } catch {
+        toast.error("Failed to save transcript");
+        return false;
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+
+        if (pendingResaveRef.current) {
+          pendingResaveRef.current = false;
+          const stillDirty =
+            serializeDraftBaseline(draftSegmentsRef.current) !== saveBaselineRef.current;
+          if (stillDirty) {
+            void saveTranscriptRef.current({ silent: true });
+          }
+        }
+      }
+    };
+  }, [jobId]);
+
+  useEffect(() => {
+    if (!editMode || !autoSaveEnabled || saving) return;
+
+    const dirty =
+      serializeDraftBaseline(draftSegments) !== saveBaselineRef.current;
+    if (!dirty) return;
+
+    const timer = window.setTimeout(() => {
+      void saveTranscriptRef.current({ silent: true });
+    }, AUTO_SAVE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [draftSegments, editMode, autoSaveEnabled, saving]);
+
   function seekTo(time: number) {
     const audio = audioRef.current;
     if (audio) audio.currentTime = Math.max(0, time);
@@ -116,7 +230,10 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   }
 
   function enterEditMode(segmentId?: number) {
-    setDraftSegments(segments.map((s) => ({ ...s })));
+    const draft = segments.map((s) => ({ ...s }));
+    saveBaselineRef.current = serializeDraftBaseline(draft);
+    setDraftSegments(draft);
+    setLastSavedAt(null);
     setFocusSegmentId(segmentId ?? null);
     setEditMode(true);
   }
@@ -124,6 +241,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   function cancelEdit() {
     setDraftSegments([]);
     setFocusSegmentId(null);
+    setLastSavedAt(null);
     setEditMode(false);
   }
 
@@ -133,32 +251,13 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
     );
   }
 
-  async function saveEdit() {
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/transcribe/jobs/${jobId}/transcript`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          segments: draftSegments.map(({ id, text }) => ({ id, text })),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Failed to save transcript");
-        return;
-      }
-      setWords(data.words ?? []);
-      setSegments(data.segments ?? []);
-      setEditMode(false);
-      setDraftSegments([]);
-      setFocusSegmentId(null);
-      toast.success("Transcript saved");
-    } catch {
-      toast.error("Failed to save transcript");
-    } finally {
-      setSaving(false);
-    }
+  function handleAutoSaveChange(enabled: boolean) {
+    setAutoSaveEnabled(enabled);
+    localStorage.setItem(AUTO_SAVE_STORAGE_KEY, String(enabled));
+  }
+
+  function saveEdit() {
+    void saveTranscriptRef.current({ close: true, silent: false });
   }
 
   const playerProps = {
@@ -175,6 +274,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
 
   const canEdit = !loading && !error && segments.length > 0;
   const handleFocusSegmentHandled = useCallback(() => setFocusSegmentId(null), []);
+  const lastSavedLabel = lastSavedAt ? formatSavedAgo(lastSavedAt) : null;
 
   return (
     <div className="flex h-[calc(100dvh-7.5rem)] flex-col overflow-hidden animate-in fade-in duration-500 md:h-[calc(100dvh-4rem)]">
@@ -203,7 +303,6 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
             )}
           </div>
         </div>
-
       </header>
 
       {error && (
@@ -221,6 +320,9 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
             mode={editMode ? "edit" : "view"}
             saving={saving}
             canEdit={canEdit}
+            autoSaveEnabled={autoSaveEnabled}
+            onAutoSaveChange={handleAutoSaveChange}
+            lastSavedLabel={lastSavedLabel}
             focusSegmentId={focusSegmentId}
             words={words}
             segments={segments}
