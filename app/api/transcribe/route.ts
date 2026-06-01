@@ -6,12 +6,13 @@ import { mkdtemp, unlink } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { config } from "@/lib/config";
-import { createTranscribeJob, listTranscribeJobs, upsertTranscribeSettings } from "@/lib/db/queries";
+import { createTranscribeJob, getTranscribeFolder, listTranscribeJobs, upsertTranscribeSettings } from "@/lib/db/queries";
 import { putFile } from "@/lib/storage/s3";
 import { enqueue } from "@/lib/worker/queue";
 import { accepted, error, handleRoute, json } from "@/lib/api";
 
-function toJobSummary(job: Awaited<ReturnType<typeof listTranscribeJobs>>[number]) {
+function toJobSummary(row: Awaited<ReturnType<typeof listTranscribeJobs>>[number]) {
+  const { job, folderName } = row;
   return {
     id: job.id,
     filename: job.filename,
@@ -22,7 +23,16 @@ function toJobSummary(job: Awaited<ReturnType<typeof listTranscribeJobs>>[number
     error: job.error,
     hasWordTimings: job.hasWordTimings,
     createdAt: job.createdAt?.toISOString(),
+    folderId: job.folderId ?? null,
+    folderName: folderName ?? null,
   };
+}
+
+async function resolveFolderId(raw: string | null): Promise<string | null | "invalid"> {
+  if (!raw) return null;
+  const folder = await getTranscribeFolder(raw);
+  if (!folder) return "invalid";
+  return folder.id;
 }
 
 export async function GET() {
@@ -45,6 +55,10 @@ export async function POST(req: NextRequest) {
     if (!model) return error("Missing 'model'");
     const size = parseFloat(sizeRaw);
     if (!Number.isFinite(size) || size <= 0) return error("Invalid 'size'");
+
+    const folderIdRaw = sp.get("folderId");
+    const folderId = await resolveFolderId(folderIdRaw);
+    if (folderId === "invalid") return error("Folder not found", 404);
 
     const contentType = req.headers.get("content-type") ?? "application/octet-stream";
     const jobId = randomUUID();
@@ -91,6 +105,7 @@ export async function POST(req: NextRequest) {
       model,
       systemPrompt: prompt,
       sourceKey,
+      folderId,
     });
 
     await upsertTranscribeSettings({

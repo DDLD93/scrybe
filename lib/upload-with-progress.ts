@@ -10,6 +10,7 @@ type UploadParams = {
   size: string;
   model: string;
   prompt: string;
+  folderId?: string;
 };
 
 export function uploadTranscribeFile(
@@ -25,6 +26,7 @@ export function uploadTranscribeFile(
       model: params.model,
       prompt: params.prompt,
     });
+    if (params.folderId) q.set("folderId", params.folderId);
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `/api/transcribe?${q}`);

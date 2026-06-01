@@ -4,15 +4,30 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   IconChevronRight,
+  IconDotsVertical,
   IconFolder,
+  IconFolderPlus,
   IconLayoutGrid,
   IconList,
+  IconPencil,
   IconSearch,
+  IconTrash,
 } from "@tabler/icons-react";
+import { toast } from "sonner";
+import { DeleteFolderDialog } from "@/components/transcribe/delete-folder-dialog";
+import { EditTranscriptDialog } from "@/components/transcribe/edit-transcript-dialog";
+import { FolderFormDialog } from "@/components/transcribe/folder-form-dialog";
 import { TranscriptsTable } from "@/components/transcribe/transcripts-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -23,11 +38,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { TranscribeJob } from "@/hooks/use-transcribe-jobs";
+import type { TranscribeFolder } from "@/hooks/use-transcribe-folders";
 import {
   filterTranscriptJobs,
   folderLabel,
-  jobsInFolder,
-  listTranscriptFolders,
+  jobsForFolder,
+  toFolderCards,
+  UNCATEGORIZED_FOLDER,
   type TranscriptFilters,
 } from "@/lib/transcribe/folders";
 import { cn } from "@/lib/utils";
@@ -36,35 +53,61 @@ type ViewMode = "grid" | "list";
 
 type TranscriptsBrowserProps = {
   jobs: TranscribeJob[];
+  folders: TranscribeFolder[];
   onRefresh: () => void;
+  onRefreshFolders: () => void;
+  onCreateFolder: (name: string) => Promise<void>;
+  onRenameFolder: (id: string, name: string) => Promise<void>;
+  onDeleteFolder: (id: string) => Promise<void>;
 };
 
 const DEFAULT_FILTERS: TranscriptFilters = {
   query: "",
   status: "all",
   wordTiming: "all",
+  folder: "all",
 };
 
-export function TranscriptsBrowser({ jobs, onRefresh }: TranscriptsBrowserProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+export function TranscriptsBrowser({
+  jobs,
+  folders,
+  onRefresh,
+  onRefreshFolders,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
+}: TranscriptsBrowserProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [filters, setFilters] = useState<TranscriptFilters>(DEFAULT_FILTERS);
+
+  const [folderFormOpen, setFolderFormOpen] = useState(false);
+  const [folderFormMode, setFolderFormMode] = useState<"create" | "rename">("create");
+  const [folderToEdit, setFolderToEdit] = useState<TranscribeFolder | null>(null);
+  const [folderSaving, setFolderSaving] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState<TranscribeFolder | null>(null);
+  const [folderDeleting, setFolderDeleting] = useState(false);
+
+  const [jobToEdit, setJobToEdit] = useState<TranscribeJob | null>(null);
+  const [jobSaving, setJobSaving] = useState(false);
 
   const filteredJobs = useMemo(
     () => filterTranscriptJobs(jobs, filters),
     [jobs, filters],
   );
 
-  const folders = useMemo(() => listTranscriptFolders(filteredJobs), [filteredJobs]);
+  const folderCards = useMemo(() => toFolderCards(folders, jobs), [folders, jobs]);
 
-  const folderJobs = useMemo(() => {
+  const gridFolderJobs = useMemo(() => {
     if (!activeFolder) return [];
-    return jobsInFolder(filteredJobs, activeFolder);
-  }, [filteredJobs, activeFolder]);
+    if (activeFolder === UNCATEGORIZED_FOLDER) {
+      return filterTranscriptJobs(jobsForFolder(jobs, null), filters);
+    }
+    return filterTranscriptJobs(jobsForFolder(jobs, activeFolder), filters);
+  }, [jobs, activeFolder, filters]);
 
   function updateFilter<K extends keyof TranscriptFilters>(key: K, value: TranscriptFilters[K]) {
     setFilters((prev) => ({ ...prev, [key]: value }));
-    if (viewMode === "grid") setActiveFolder(null);
   }
 
   function switchViewMode(mode: ViewMode) {
@@ -72,43 +115,163 @@ export function TranscriptsBrowser({ jobs, onRefresh }: TranscriptsBrowserProps)
     if (mode === "list") setActiveFolder(null);
   }
 
+  function openCreateFolder() {
+    setFolderFormMode("create");
+    setFolderToEdit(null);
+    setFolderFormOpen(true);
+  }
+
+  function openRenameFolder(folder: TranscribeFolder) {
+    setFolderFormMode("rename");
+    setFolderToEdit(folder);
+    setFolderFormOpen(true);
+  }
+
+  async function handleFolderSubmit(name: string) {
+    setFolderSaving(true);
+    try {
+      if (folderFormMode === "create") {
+        await onCreateFolder(name);
+        toast.success("Folder created");
+      } else if (folderToEdit) {
+        await onRenameFolder(folderToEdit.id, name);
+        toast.success("Folder renamed");
+      }
+      setFolderFormOpen(false);
+      onRefreshFolders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save folder");
+    } finally {
+      setFolderSaving(false);
+    }
+  }
+
+  async function confirmDeleteFolder() {
+    if (!folderToDelete) return;
+    setFolderDeleting(true);
+    try {
+      await onDeleteFolder(folderToDelete.id);
+      toast.success("Folder deleted");
+      if (activeFolder === folderToDelete.id) setActiveFolder(null);
+      setFolderToDelete(null);
+      onRefreshFolders();
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete folder");
+    } finally {
+      setFolderDeleting(false);
+    }
+  }
+
+  async function handleEditJob(data: { filename: string; folderId: string | null }) {
+    if (!jobToEdit) return;
+    setJobSaving(true);
+    try {
+      const res = await fetch(`/api/transcribe/jobs/${jobToEdit.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update transcript");
+      toast.success("Transcript updated");
+      setJobToEdit(null);
+      onRefresh();
+      onRefreshFolders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update transcript");
+    } finally {
+      setJobSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <FolderFormDialog
+        mode={folderFormMode}
+        folder={folderToEdit}
+        open={folderFormOpen}
+        saving={folderSaving}
+        onOpenChange={setFolderFormOpen}
+        onSubmit={handleFolderSubmit}
+      />
+
+      <DeleteFolderDialog
+        folder={folderToDelete}
+        deleting={folderDeleting}
+        onOpenChange={(open) => {
+          if (!open && !folderDeleting) setFolderToDelete(null);
+        }}
+        onConfirm={confirmDeleteFolder}
+      />
+
+      <EditTranscriptDialog
+        job={jobToEdit}
+        folders={folders}
+        saving={jobSaving}
+        onOpenChange={(open) => {
+          if (!open && !jobSaving) setJobToEdit(null);
+        }}
+        onSubmit={handleEditJob}
+      />
+
       <TranscriptToolbar
         filters={filters}
         viewMode={viewMode}
+        folders={folders}
         onFilterChange={updateFilter}
         onViewModeChange={switchViewMode}
+        onCreateFolder={openCreateFolder}
       />
 
       {viewMode === "grid" && (
         <>
           {activeFolder && (
             <Breadcrumb
-              folderLabel={folderLabel(activeFolder)}
+              folderLabel={folderLabel(activeFolder, folders)}
               onBack={() => setActiveFolder(null)}
             />
           )}
 
           {activeFolder ? (
-            folderJobs.length > 0 ? (
-              <JobGrid jobs={folderJobs} />
+            gridFolderJobs.length > 0 ? (
+              <JobGrid jobs={gridFolderJobs} />
             ) : (
               <EmptyFiltered message="No transcripts in this folder match your filters." />
             )
-          ) : folders.length > 0 ? (
-            <FolderGrid folders={folders} onOpen={setActiveFolder} />
           ) : (
-            <EmptyFiltered message="No transcripts match your filters." />
+            <FolderGrid
+              folders={folderCards}
+              allFolders={folders}
+              onOpen={setActiveFolder}
+              onRename={(id) => {
+                const folder = folders.find((f) => f.id === id);
+                if (folder) openRenameFolder(folder);
+              }}
+              onDelete={(id) => {
+                const folder = folders.find((f) => f.id === id);
+                if (folder) setFolderToDelete(folder);
+              }}
+            />
           )}
         </>
       )}
 
       {viewMode === "list" && (
         filteredJobs.length > 0 ? (
-          <TranscriptsTable jobs={filteredJobs} onRefresh={onRefresh} />
+          <TranscriptsTable
+            jobs={filteredJobs}
+            onRefresh={onRefresh}
+            onEditJob={setJobToEdit}
+          />
         ) : (
-          <EmptyFiltered message="No transcripts match your filters." />
+          <EmptyFiltered
+            message={
+              jobs.length === 0
+                ? "No transcripts yet."
+                : "No transcripts match your filters."
+            }
+          />
         )
       )}
     </div>
@@ -118,17 +281,21 @@ export function TranscriptsBrowser({ jobs, onRefresh }: TranscriptsBrowserProps)
 function TranscriptToolbar({
   filters,
   viewMode,
+  folders,
   onFilterChange,
   onViewModeChange,
+  onCreateFolder,
 }: {
   filters: TranscriptFilters;
   viewMode: ViewMode;
+  folders: TranscribeFolder[];
   onFilterChange: <K extends keyof TranscriptFilters>(key: K, value: TranscriptFilters[K]) => void;
   onViewModeChange: (mode: ViewMode) => void;
+  onCreateFolder: () => void;
 }) {
   return (
     <div className="glass-card space-y-3 rounded-xl p-4 ring-1 ring-border/50">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -140,6 +307,21 @@ function TranscriptToolbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Select value={filters.folder} onValueChange={(v) => onFilterChange("folder", v)}>
+            <SelectTrigger size="sm" className="w-[9rem]">
+              <SelectValue placeholder="Folder" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All folders</SelectItem>
+              <SelectItem value={UNCATEGORIZED_FOLDER}>Uncategorized</SelectItem>
+              {folders.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={filters.status} onValueChange={(v) => onFilterChange("status", v)}>
             <SelectTrigger size="sm" className="w-[8.5rem]">
               <SelectValue placeholder="Status" />
@@ -169,6 +351,11 @@ function TranscriptToolbar({
               <SelectItem value="no">No timing</SelectItem>
             </SelectContent>
           </Select>
+
+          <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={onCreateFolder}>
+            <IconFolderPlus className="size-3.5" />
+            New folder
+          </Button>
 
           <div className="flex items-center rounded-lg border border-border/50 p-0.5">
             <Button
@@ -220,32 +407,113 @@ function Breadcrumb({
 
 function FolderGrid({
   folders,
+  allFolders,
   onOpen,
+  onRename,
+  onDelete,
 }: {
-  folders: ReturnType<typeof listTranscriptFolders>;
+  folders: ReturnType<typeof toFolderCards>;
+  allFolders: TranscribeFolder[];
   onOpen: (folderId: string) => void;
+  onRename: (folderId: string) => void;
+  onDelete: (folderId: string) => void;
 }) {
+  if (folders.length === 0 && allFolders.length === 0) {
+    return (
+      <EmptyFiltered message="No folders yet. Create one to organize your transcripts." />
+    );
+  }
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {folders.map((folder) => (
-        <button
+      {allFolders.map((folder) => (
+        <FolderCard
           key={folder.id}
-          type="button"
-          onClick={() => onOpen(folder.id)}
-          className="glass-card group flex items-start gap-3 rounded-xl p-4 text-left ring-1 ring-border/50 transition-all hover:bg-primary/5 hover:ring-primary/30"
-        >
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20 transition-colors group-hover:bg-primary/15">
-            <IconFolder className="size-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-medium text-foreground">{folder.label}</p>
-            <p className="text-xs text-muted-foreground">
-              {folder.count} transcript{folder.count !== 1 ? "s" : ""}
-            </p>
-          </div>
-          <IconChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-        </button>
+          label={folder.name}
+          count={folder.jobCount}
+          canManage
+          onOpen={() => onOpen(folder.id)}
+          onRename={() => onRename(folder.id)}
+          onDelete={() => onDelete(folder.id)}
+          deleteDisabled={folder.jobCount > 0}
+        />
       ))}
+
+      {folders
+        .filter((f) => f.id === UNCATEGORIZED_FOLDER)
+        .map((folder) => (
+          <FolderCard
+            key={folder.id}
+            label={folder.label}
+            count={folder.count}
+            onOpen={() => onOpen(folder.id)}
+          />
+        ))}
+    </div>
+  );
+}
+
+function FolderCard({
+  label,
+  count,
+  canManage,
+  deleteDisabled,
+  onOpen,
+  onRename,
+  onDelete,
+}: {
+  label: string;
+  count: number;
+  canManage?: boolean;
+  deleteDisabled?: boolean;
+  onOpen: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
+}) {
+  return (
+    <div className="glass-card group flex items-start gap-3 rounded-xl p-4 ring-1 ring-border/50 transition-all hover:bg-primary/5 hover:ring-primary/30">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+      >
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
+          <IconFolder className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground">
+            {count} transcript{count !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      {canManage && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" className="shrink-0">
+              <IconDotsVertical className="size-4" />
+              <span className="sr-only">Folder actions</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onRename}>
+              <IconPencil className="size-3.5" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={deleteDisabled}
+              onClick={onDelete}
+            >
+              <IconTrash className="size-3.5" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }

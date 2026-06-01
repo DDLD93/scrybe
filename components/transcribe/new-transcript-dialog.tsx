@@ -32,12 +32,15 @@ import { UploadOverlay } from "@/components/transcribe/upload-overlay";
 import { uploadTranscribeFile, type UploadProgress } from "@/lib/upload-with-progress";
 import { cn } from "@/lib/utils";
 
+import type { TranscribeFolder } from "@/hooks/use-transcribe-folders";
+
 type Model = { id: string; name: string };
 
 type NewTranscriptDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  folders?: TranscribeFolder[];
 };
 
 const URL_PRESETS = ["mp3", "aac", "best"] as const;
@@ -46,6 +49,7 @@ export function NewTranscriptDialog({
   open,
   onOpenChange,
   onSuccess,
+  folders = [],
 }: NewTranscriptDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [models, setModels] = useState<Model[]>([]);
@@ -55,6 +59,7 @@ export function NewTranscriptDialog({
   const [size, setSize] = useState("30");
   const [model, setModel] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [folderId, setFolderId] = useState<string>("__none__");
   const [url, setUrl] = useState("");
   const [preset, setPreset] = useState<string>("mp3");
   const [submitting, setSubmitting] = useState(false);
@@ -118,7 +123,13 @@ export function NewTranscriptDialog({
     try {
       const data = await uploadTranscribeFile(
         file,
-        { unit, size, model, prompt },
+        {
+          unit,
+          size,
+          model,
+          prompt,
+          folderId: folderId === "__none__" ? undefined : folderId,
+        },
         setUploadProgress,
       );
       toast.success(`Transcription started — job ${data.jobId.slice(0, 8)}…`);
@@ -160,6 +171,7 @@ export function NewTranscriptDialog({
 
       setUrlPhase("transcribing");
       const q = new URLSearchParams({ model, size, unit, prompt });
+      if (folderId !== "__none__") q.set("folderId", folderId);
       const txRes = await fetch(
         `/api/download/jobs/${jobId}/transcribe?${q}`,
         { method: "POST" },
@@ -267,6 +279,9 @@ export function NewTranscriptDialog({
                   models={models}
                   prompt={prompt}
                   setPrompt={setPrompt}
+                  folderId={folderId}
+                  setFolderId={setFolderId}
+                  folders={folders}
                   disabled={busy}
                 />
 
@@ -318,6 +333,9 @@ export function NewTranscriptDialog({
                   models={models}
                   prompt={prompt}
                   setPrompt={setPrompt}
+                  folderId={folderId}
+                  setFolderId={setFolderId}
+                  folders={folders}
                   disabled={busy}
                 />
 
@@ -355,6 +373,9 @@ type FormFieldsProps = {
   models: Model[];
   prompt: string;
   setPrompt: (v: string) => void;
+  folderId: string;
+  setFolderId: (v: string) => void;
+  folders: TranscribeFolder[];
   disabled?: boolean;
 };
 
@@ -368,10 +389,30 @@ const FormFields = memo(function FormFields({
   models,
   prompt,
   setPrompt,
+  folderId,
+  setFolderId,
+  folders,
   disabled,
 }: FormFieldsProps) {
   return (
     <>
+      <div className="space-y-2">
+        <Label>Folder</Label>
+        <Select value={folderId} onValueChange={setFolderId} disabled={disabled}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Uncategorized" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">None (uncategorized)</SelectItem>
+            {folders.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {f.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>Chunk by</Label>
@@ -416,6 +457,7 @@ const FormFields = memo(function FormFields({
           rows={3}
           placeholder="Guide transcription style, terminology, speaker names…"
           disabled={disabled}
+          className="max-h-28 resize-none overflow-y-auto"
         />
         <p className="text-[0.65rem] text-muted-foreground">
           Optional. Applied to every chunk during transcription.

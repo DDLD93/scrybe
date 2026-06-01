@@ -35,6 +35,13 @@ export type TranscriptSegment = {
   wordEndIdx: number;
 };
 
+export const transcribeFolders = pgTable("transcribe_folders", {
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const transcribeJobs = pgTable("transcribe_jobs", {
   id: uuid("id").primaryKey(),
   filename: text("filename").notNull(),
@@ -44,6 +51,7 @@ export const transcribeJobs = pgTable("transcribe_jobs", {
   chunkSize: numeric("chunk_size", { precision: 12, scale: 4 }).notNull(),
   model: text("model").notNull(),
   systemPrompt: text("system_prompt"),
+  folderId: uuid("folder_id").references(() => transcribeFolders.id, { onDelete: "set null" }),
   status: text("status").notNull().default("pending"),
   totalChunks: integer("total_chunks").notNull().default(0),
   completedChunks: integer("completed_chunks").notNull().default(0),

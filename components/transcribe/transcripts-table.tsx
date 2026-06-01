@@ -8,6 +8,7 @@ import {
   IconExternalLink,
   IconFileText,
   IconHighlight,
+  IconPencil,
   IconPlayerPlay,
   IconPlayerStop,
   IconRefresh,
@@ -45,9 +46,10 @@ import { cn } from "@/lib/utils";
 type TranscriptsTableProps = {
   jobs: TranscribeJob[];
   onRefresh: () => void;
+  onEditJob?: (job: TranscribeJob) => void;
 };
 
-export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
+export function TranscriptsTable({ jobs, onRefresh, onEditJob }: TranscriptsTableProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [jobToDelete, setJobToDelete] = useState<TranscribeJob | null>(null);
@@ -107,8 +109,9 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border/50">
-            <TableHead className="w-[35%]">File</TableHead>
-            <TableHead className="w-28">Word timing</TableHead>
+            <TableHead className="w-[28%]">File</TableHead>
+            <TableHead className="w-[12%]">Folder</TableHead>
+            <TableHead className="w-24">Word timing</TableHead>
             <TableHead>Model</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="w-[20%]">Progress</TableHead>
@@ -152,6 +155,9 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
                   <span className="block truncate" title={job.filename}>
                     {job.filename}
                   </span>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {job.folderName ?? "—"}
                 </TableCell>
                 <TableCell>
                   {job.hasWordTimings ? (
@@ -260,6 +266,11 @@ export function TranscriptsTable({ jobs, onRefresh }: TranscriptsTableProps) {
                           <IconExternalLink className="size-3.5" />
                           View JSON
                         </a>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onEditJob?.(job)}>
+                        <IconPencil className="size-3.5" />
+                        Edit / move
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem

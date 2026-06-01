@@ -7,12 +7,25 @@ import { NewTranscriptDialog } from "@/components/transcribe/new-transcript-dial
 import { TranscriptsBrowser } from "@/components/transcribe/transcripts-browser";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranscribeFolders } from "@/hooks/use-transcribe-folders";
 import { useTranscribeJobs } from "@/hooks/use-transcribe-jobs";
 import { cn } from "@/lib/utils";
 
 export default function TranscribePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { jobs, loading, refresh, hasActiveJobs } = useTranscribeJobs(2000, dialogOpen);
+  const {
+    folders,
+    refresh: refreshFolders,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+  } = useTranscribeFolders(2000, dialogOpen);
+
+  function handleSuccess() {
+    refresh();
+    refreshFolders();
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -45,24 +58,42 @@ export default function TranscribePage() {
             <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
-      ) : jobs.length === 0 ? (
-        <div className="glass-card rounded-xl ring-1 ring-border/50">
-          <EmptyState
-            icon={<IconMicrophone className="size-6" />}
-            title="No transcripts yet"
-            description="Upload an audio file or fetch media from a URL to create your first transcription."
-            actionLabel="Create your first transcript"
-            onAction={() => setDialogOpen(true)}
-          />
-        </div>
       ) : (
-        <TranscriptsBrowser jobs={jobs} onRefresh={refresh} />
+        <>
+          {jobs.length === 0 && (
+            <div className="glass-card rounded-xl ring-1 ring-border/50">
+              <EmptyState
+                icon={<IconMicrophone className="size-6" />}
+                title="No transcripts yet"
+                description="Upload an audio file or fetch media from a URL to create your first transcription."
+                actionLabel="Create your first transcript"
+                onAction={() => setDialogOpen(true)}
+              />
+            </div>
+          )}
+          <TranscriptsBrowser
+            jobs={jobs}
+            folders={folders}
+            onRefresh={refresh}
+            onRefreshFolders={refreshFolders}
+            onCreateFolder={async (name) => {
+              await createFolder(name);
+            }}
+            onRenameFolder={async (id, name) => {
+              await renameFolder(id, name);
+            }}
+            onDeleteFolder={async (id) => {
+              await deleteFolder(id);
+            }}
+          />
+        </>
       )}
 
       <NewTranscriptDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onSuccess={refresh}
+        onSuccess={handleSuccess}
+        folders={folders}
       />
     </div>
   );

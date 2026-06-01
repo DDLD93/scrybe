@@ -4,6 +4,7 @@ import {
   createTranscribeJob,
   getDownloadArtifacts,
   getDownloadJob,
+  getTranscribeFolder,
   upsertTranscribeSettings,
 } from "@/lib/db/queries";
 import { copyObject } from "@/lib/storage/s3";
@@ -26,6 +27,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     const size = req.nextUrl.searchParams.get("size") ?? "30";
     const unit = req.nextUrl.searchParams.get("unit") ?? "seconds";
     const systemPrompt = req.nextUrl.searchParams.get("prompt") ?? undefined;
+    const folderIdRaw = req.nextUrl.searchParams.get("folderId");
+    let folderId: string | null = null;
+    if (folderIdRaw) {
+      const folder = await getTranscribeFolder(folderIdRaw);
+      if (!folder) return error("Folder not found", 404);
+      folderId = folder.id;
+    }
 
     const transcribeId = randomUUID();
     const destKey = `jobs/${transcribeId}/source/${media.name}`;
@@ -41,6 +49,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       model,
       systemPrompt,
       sourceKey: destKey,
+      folderId,
     });
 
     await upsertTranscribeSettings({
