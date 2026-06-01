@@ -78,6 +78,12 @@ export async function insertDownloadArtifact(data: {
   await db.insert(downloadArtifacts).values(data);
 }
 
+export async function deleteDownloadJob(id: string): Promise<boolean> {
+  const db = getDb();
+  const result = await db.delete(downloadJobs).where(eq(downloadJobs.id, id)).returning({ id: downloadJobs.id });
+  return result.length > 0;
+}
+
 export async function listTranscribeJobs(limit = 200) {
   const db = getDb();
   return db

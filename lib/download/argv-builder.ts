@@ -125,7 +125,6 @@ export function buildYtdlpArgv(
     !opts.dumpJson &&
     !opts.getUrl &&
     !opts.writeSubs &&
-    !opts.streamToStdout &&
     !opts.printFilename
   ) {
     argv.push("--newline", "--progress-template", "download:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s");

@@ -10,8 +10,10 @@ import {
   IconPlayerStop,
   IconRefresh,
   IconSearch,
+  IconTrash,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
+import { DeleteDownloadJobDialog } from "@/components/download/delete-download-job-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +21,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -46,7 +49,59 @@ type Job = {
   error?: string | null;
 };
 
+type DownloadProgressState = {
+  phase: "starting" | "downloading" | "saving";
+  percent?: number;
+  speed?: string;
+  eta?: number;
+};
+
 const PRESETS = ["mp3", "aac", "mp4", "mkv", "best"] as const;
+
+function formatEta(seconds?: number): string | null {
+  if (seconds == null || !Number.isFinite(seconds)) return null;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function JobProgressCell({
+  isActive,
+  progress,
+}: {
+  isActive: boolean;
+  progress?: { percent?: number; speed?: string; eta?: number };
+}) {
+  if (!isActive) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  const pct = progress?.percent;
+  const etaLabel = formatEta(progress?.eta);
+
+  if (pct != null) {
+    return (
+      <div className="space-y-1.5">
+        <Progress value={pct} className="h-1.5 animate-pulse" />
+        <div className="flex flex-wrap items-center gap-x-2 text-[0.65rem] tabular-nums text-muted-foreground">
+          <span>{Math.round(pct)}%</span>
+          {progress?.speed && <span>{progress.speed}</span>}
+          {etaLabel && <span>ETA {etaLabel}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="relative h-1.5 overflow-hidden rounded-md bg-muted">
+        <div className="absolute inset-y-0 w-1/3 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-md bg-primary" />
+      </div>
+      <span className="text-[0.65rem] text-muted-foreground">Starting…</span>
+    </div>
+  );
+}
 
 export default function DownloadPage() {
   const router = useRouter();
@@ -59,12 +114,15 @@ export default function DownloadPage() {
   const [loading, setLoading] = useState(false);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgressState | null>(null);
   const downloadAbortRef = useRef<AbortController | null>(null);
+  const progressSourceRef = useRef<EventSource | null>(null);
   const [writeSubs, setWriteSubs] = useState(false);
   const [noPlaylist, setNoPlaylist] = useState(false);
   const [playlistItems, setPlaylistItems] = useState("");
   const [sponsorblock, setSponsorblock] = useState("");
+  const [jobToDelete, setJobToDelete] = useState<{ id: string; label: string; isActive: boolean } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -91,25 +149,10 @@ export default function DownloadPage() {
   }, [loadJobs]);
 
   useEffect(() => {
-    if (!activeJobId) return;
-    const t = setInterval(async () => {
-      const res = await fetch(`/api/download/jobs/${activeJobId}`);
-      const job = await res.json();
-      if (job.status === "completed") {
-        toast.success("Download completed");
-        setActiveJobId(null);
-        loadJobs();
-      } else if (job.status === "failed" || job.status === "stopped") {
-        toast.error(job.error ?? "Download failed");
-        setActiveJobId(null);
-        loadJobs();
-      }
-    }, 2000);
-    return () => clearInterval(t);
-  }, [activeJobId, loadJobs]);
-
-  useEffect(() => {
-    return () => downloadAbortRef.current?.abort();
+    return () => {
+      downloadAbortRef.current?.abort();
+      progressSourceRef.current?.close();
+    };
   }, []);
 
   async function inspect() {
@@ -140,10 +183,45 @@ export default function DownloadPage() {
     }
 
     downloadAbortRef.current?.abort();
+    progressSourceRef.current?.close();
+
     const controller = new AbortController();
     downloadAbortRef.current = controller;
+    const sessionId = crypto.randomUUID();
 
     setDownloading(true);
+    setDownloadProgress({ phase: "starting" });
+
+    const source = new EventSource(
+      `/api/download/stream/progress?sessionId=${encodeURIComponent(sessionId)}`,
+    );
+    progressSourceRef.current = source;
+
+    source.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as {
+          percent?: number;
+          speed?: string;
+          eta?: number;
+          done?: boolean;
+          error?: string;
+        };
+        if (data.error) return;
+        if (data.done) {
+          source.close();
+          return;
+        }
+        setDownloadProgress({
+          phase: "downloading",
+          percent: data.percent,
+          speed: data.speed,
+          eta: data.eta,
+        });
+      } catch {
+        /* ignore malformed events */
+      }
+    };
+
     try {
       const res = await fetch("/api/download/stream", {
         method: "POST",
@@ -151,6 +229,7 @@ export default function DownloadPage() {
         body: JSON.stringify({
           url,
           preset,
+          sessionId,
           options: {
             format: format || undefined,
             writeSubs,
@@ -166,16 +245,21 @@ export default function DownloadPage() {
         throw new Error((data as { error?: string }).error ?? "Download failed");
       }
 
-      const filename = await saveDownloadResponse(res);
+      const filename = await saveDownloadResponse(res, {
+        onSaving: () => setDownloadProgress((prev) => ({ ...prev!, phase: "saving" })),
+      });
       toast.success(`Saved ${filename}`);
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return;
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
+      source.close();
+      progressSourceRef.current = null;
       if (downloadAbortRef.current === controller) {
         downloadAbortRef.current = null;
       }
       setDownloading(false);
+      setDownloadProgress(null);
     }
   }
 
@@ -202,10 +286,39 @@ export default function DownloadPage() {
     loadJobs();
   }
 
+  async function confirmDeleteJob() {
+    if (!jobToDelete) return;
+    setDeletingId(jobToDelete.id);
+    try {
+      const res = await fetch(`/api/download/jobs/${jobToDelete.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? "Delete failed");
+      }
+      toast.success("Download deleted");
+      setJobToDelete(null);
+      loadJobs();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   const hasActiveJobs = jobs.some((j) => ["pending", "processing"].includes(j.status));
+  const streamEtaLabel = formatEta(downloadProgress?.eta);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      <DeleteDownloadJobDialog
+        job={jobToDelete}
+        deleting={deletingId !== null}
+        onOpenChange={(open) => {
+          if (!open && deletingId === null) setJobToDelete(null);
+        }}
+        onConfirm={confirmDeleteJob}
+      />
+
       <div className="space-y-1">
         <div className="flex items-center gap-2.5">
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
@@ -269,6 +382,36 @@ export default function DownloadPage() {
               Download
             </Button>
           </div>
+
+          {downloadProgress && (
+            <div className="space-y-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-foreground">
+                  {downloadProgress.phase === "starting" && "Starting download…"}
+                  {downloadProgress.phase === "downloading" && "Downloading…"}
+                  {downloadProgress.phase === "saving" && "Saving to device…"}
+                </span>
+                {downloadProgress.percent != null && (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {Math.round(downloadProgress.percent)}%
+                  </span>
+                )}
+              </div>
+              {downloadProgress.phase === "starting" || downloadProgress.percent == null ? (
+                <div className="relative h-1.5 overflow-hidden rounded-md bg-muted">
+                  <div className="absolute inset-y-0 w-1/3 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-md bg-primary" />
+                </div>
+              ) : (
+                <Progress value={downloadProgress.percent} className="h-1.5" />
+              )}
+              {downloadProgress.phase === "downloading" && (downloadProgress.speed || streamEtaLabel) && (
+                <div className="flex flex-wrap gap-x-3 text-[0.65rem] tabular-nums text-muted-foreground">
+                  {downloadProgress.speed && <span>{downloadProgress.speed}</span>}
+                  {streamEtaLabel && <span>ETA {streamEtaLabel}</span>}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -393,8 +536,8 @@ export default function DownloadPage() {
               <TableBody>
                 {jobs.map((job) => {
                   const media = job.artifacts.find((a) => a.role === "media");
-                  const pct = job.progress?.percent ?? 0;
                   const isActive = ["pending", "processing"].includes(job.status);
+                  const label = media?.name ?? job.url.slice(0, 50);
 
                   return (
                     <TableRow key={job.id} className="border-border/30">
@@ -410,20 +553,11 @@ export default function DownloadPage() {
                       </TableCell>
                       <TableCell className="max-w-0 font-mono text-xs">
                         <span className="block truncate" title={media?.name ?? job.url}>
-                          {media?.name ?? job.url.slice(0, 50)}
+                          {label}
                         </span>
                       </TableCell>
                       <TableCell>
-                        {isActive && job.progress?.percent != null ? (
-                          <div className="space-y-1.5">
-                            <Progress value={pct} className="h-1.5 animate-pulse" />
-                            <span className="text-[0.65rem] tabular-nums text-muted-foreground">
-                              {Math.round(pct)}%
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
+                        <JobProgressCell isActive={isActive} progress={job.progress} />
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -464,6 +598,17 @@ export default function DownloadPage() {
                                 Resume
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              disabled={deletingId === job.id}
+                              onClick={() =>
+                                setJobToDelete({ id: job.id, label, isActive })
+                              }
+                            >
+                              <IconTrash className="size-3.5" />
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -483,9 +628,11 @@ export default function DownloadPage() {
         <ul className="mt-2 space-y-1 list-disc pl-4 font-mono">
           <li>GET /api/download/info?url=</li>
           <li>GET /api/download/formats?url=</li>
-          <li>POST /api/download/stream {"{ url, preset, options }"}</li>
+          <li>POST /api/download/stream {"{ url, preset, sessionId?, options }"}</li>
+          <li>GET /api/download/stream/progress?sessionId=</li>
           <li>POST /api/download/jobs {"{ url, preset, options }"} (background / transcribe)</li>
           <li>GET /api/download/jobs/{"{id}"}</li>
+          <li>DELETE /api/download/jobs/{"{id}"}</li>
         </ul>
       </details>
     </div>

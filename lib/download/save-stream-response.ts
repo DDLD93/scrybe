@@ -22,7 +22,10 @@ export function parseContentDispositionFilename(header: string | null): string |
   return null;
 }
 
-export async function saveDownloadResponse(res: Response): Promise<string> {
+export async function saveDownloadResponse(
+  res: Response,
+  opts?: { onSaving?: () => void },
+): Promise<string> {
   const filename = parseContentDispositionFilename(res.headers.get("Content-Disposition")) ?? "download";
 
   const pickerWindow = window as SaveFilePickerWindow;
@@ -30,6 +33,7 @@ export async function saveDownloadResponse(res: Response): Promise<string> {
     try {
       const handle = await pickerWindow.showSaveFilePicker({ suggestedName: filename });
       const writable = await handle.createWritable();
+      opts?.onSaving?.();
       await res.body.pipeTo(writable);
       return filename;
     } catch (err) {
@@ -37,6 +41,7 @@ export async function saveDownloadResponse(res: Response): Promise<string> {
     }
   }
 
+  opts?.onSaving?.();
   const blob = await res.blob();
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

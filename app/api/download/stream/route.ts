@@ -19,11 +19,13 @@ export async function POST(req: NextRequest) {
     }
 
     const safe = await validateDownloadUrl(url);
+    const sessionId = body.sessionId as string | undefined;
     const { body: stream, contentType, filename } = await createYtdlpDownloadStream({
       url: safe,
       preset: body.preset ?? null,
       options,
       signal: req.signal,
+      sessionId,
     });
 
     return new Response(stream, {

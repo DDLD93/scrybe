@@ -7,6 +7,13 @@ import {
   sanitizeFilename,
 } from "@/lib/download/content-type";
 import { runYtdlpOrThrow } from "@/lib/download/executor";
+import { parseProgressLine } from "@/lib/download/progress-parser";
+import {
+  completeStreamProgress,
+  failStreamProgress,
+  initStreamProgress,
+  setStreamProgress,
+} from "@/lib/download/stream-progress";
 
 export function contentDispositionAttachment(filename: string): string {
   const safe = sanitizeFilename(filename);
@@ -40,6 +47,7 @@ export async function createYtdlpDownloadStream(params: {
   preset?: string | null;
   options?: DownloadJobOptions;
   signal?: AbortSignal;
+  sessionId?: string;
 }): Promise<{
   body: ReadableStream<Uint8Array>;
   contentType: string;
@@ -49,6 +57,10 @@ export async function createYtdlpDownloadStream(params: {
   const filename = await resolveStreamFilename(params.url, params.preset, options);
   const ext = filename.includes(".") ? filename.split(".").pop()! : presetExtension(params.preset);
   const contentType = guessContentType(ext);
+
+  if (params.sessionId) {
+    initStreamProgress(params.sessionId);
+  }
 
   const argv = buildYtdlpArgv(params.url, {
     preset: params.preset,
@@ -62,7 +74,13 @@ export async function createYtdlpDownloadStream(params: {
   let stderr = "";
 
   child.stderr.on("data", (chunk: Buffer) => {
-    stderr += chunk.toString();
+    const text = chunk.toString();
+    stderr += text;
+    if (!params.sessionId) return;
+    for (const line of text.split("\n")) {
+      const progress = parseProgressLine(line);
+      if (progress) setStreamProgress(params.sessionId, progress);
+    }
   });
 
   const nodeStream = child.stdout;
@@ -75,6 +93,14 @@ export async function createYtdlpDownloadStream(params: {
 
   child.on("close", (code) => {
     params.signal?.removeEventListener("abort", onAbort);
+    if (params.sessionId) {
+      if (code === 0 || params.signal?.aborted) {
+        completeStreamProgress(params.sessionId);
+      } else {
+        const msg = stderr.trim().split("\n").slice(-3).join(" ") || "yt-dlp failed";
+        failStreamProgress(params.sessionId, msg);
+      }
+    }
     if (code !== 0 && !params.signal?.aborted) {
       const msg = stderr.trim().split("\n").slice(-3).join(" ") || "yt-dlp failed";
       nodeStream.destroy(new Error(msg));
@@ -83,6 +109,9 @@ export async function createYtdlpDownloadStream(params: {
 
   child.on("error", (err) => {
     params.signal?.removeEventListener("abort", onAbort);
+    if (params.sessionId) {
+      failStreamProgress(params.sessionId, err.message);
+    }
     nodeStream.destroy(err);
   });
 

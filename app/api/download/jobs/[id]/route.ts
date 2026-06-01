@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getDownloadArtifacts, getDownloadJob } from "@/lib/db/queries";
 import { error, handleRoute, json } from "@/lib/api";
+import { deleteDownloadJobCompletely } from "@/lib/download/cleanup";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -26,5 +27,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
     });
+  });
+}
+
+export async function DELETE(_req: Request, { params }: Params) {
+  return handleRoute(async () => {
+    const { id } = await params;
+    const deleted = await deleteDownloadJobCompletely(id);
+    if (!deleted) return error("Not found", 404);
+    return json({ deleted: true, jobId: id });
   });
 }
