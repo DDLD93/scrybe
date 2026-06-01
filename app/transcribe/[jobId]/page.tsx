@@ -260,6 +260,10 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
     void saveTranscriptRef.current({ close: true, silent: false });
   }
 
+  function exitEditMode() {
+    void saveTranscriptRef.current({ close: true, silent: autoSaveEnabled });
+  }
+
   const playerProps = {
     playing,
     currentTime,
@@ -333,6 +337,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
             onFocusSegmentHandled={handleFocusSegmentHandled}
             onCancelEdit={cancelEdit}
             onSaveEdit={saveEdit}
+            onExitEdit={exitEditMode}
             onSegmentChange={handleSegmentChange}
             className="flex-1"
           />

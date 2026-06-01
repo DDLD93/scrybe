@@ -45,6 +45,7 @@ type TranscriptPanelProps = {
   onFocusSegmentHandled?: () => void;
   onCancelEdit?: () => void;
   onSaveEdit?: () => void;
+  onExitEdit?: () => void;
   onSegmentChange?: (id: number, text: string) => void;
   className?: string;
 };
@@ -69,6 +70,7 @@ export function TranscriptPanel({
   onFocusSegmentHandled,
   onCancelEdit,
   onSaveEdit,
+  onExitEdit,
   onSegmentChange,
   className,
 }: TranscriptPanelProps) {
@@ -194,9 +196,15 @@ export function TranscriptPanel({
                 <Button variant="ghost" size="sm" onClick={onCancelEdit} disabled={saving}>
                   Cancel
                 </Button>
-                <Button size="sm" onClick={onSaveEdit} disabled={saving}>
-                  {saving ? "Saving…" : "Save"}
-                </Button>
+                {autoSaveEnabled ? (
+                  <Button size="sm" onClick={onExitEdit} disabled={saving}>
+                    View mode
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={onSaveEdit} disabled={saving}>
+                    {saving ? "Saving…" : "Save"}
+                  </Button>
+                )}
               </>
             ) : (
               <Button variant="ghost" size="sm" onClick={() => onEnterEdit?.()} disabled={!canEdit}>

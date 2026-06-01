@@ -21,6 +21,7 @@ function toJobSummary(job: Awaited<ReturnType<typeof listTranscribeJobs>>[number
     completedChunks: job.completedChunks,
     error: job.error,
     hasWordTimings: job.hasWordTimings,
+    createdAt: job.createdAt?.toISOString(),
   };
 }
 

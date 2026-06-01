@@ -4,7 +4,7 @@ import { useState } from "react";
 import { IconMicrophone, IconPlus } from "@tabler/icons-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { NewTranscriptDialog } from "@/components/transcribe/new-transcript-dialog";
-import { TranscriptsTable } from "@/components/transcribe/transcripts-table";
+import { TranscriptsBrowser } from "@/components/transcribe/transcripts-browser";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranscribeJobs } from "@/hooks/use-transcribe-jobs";
@@ -56,7 +56,7 @@ export default function TranscribePage() {
           />
         </div>
       ) : (
-        <TranscriptsTable jobs={jobs} onRefresh={refresh} />
+        <TranscriptsBrowser jobs={jobs} onRefresh={refresh} />
       )}
 
       <NewTranscriptDialog
