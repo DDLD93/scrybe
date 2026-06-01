@@ -36,7 +36,23 @@ const ALLOWED_FLAGS = new Set([
   "--ignore-errors", "--flat-playlist", "--live-from-start",
   "-r", "--limit-rate", "-N", "--concurrent-fragments",
   "--ignore-config", "--no-update",
+  "--extractor-args", "--js-runtimes", "--remote-components", "--cookies",
 ]);
+
+function appendGlobalYtdlpArgs(argv: string[], options: DownloadJobOptions): void {
+  for (const runtime of config.ytdlpJsRuntimes) {
+    argv.push("--js-runtimes", runtime);
+  }
+  argv.push("--remote-components", "ejs:github");
+  argv.push("--extractor-args", `youtube:player_client=${config.ytdlpYouTubePlayerClient}`);
+
+  const proxy = options.proxy ?? config.ytdlpProxy;
+  if (proxy) argv.push("--proxy", proxy);
+
+  if (config.ytdlpCookiesFile) {
+    argv.push("--cookies", config.ytdlpCookiesFile);
+  }
+}
 
 export function buildYtdlpArgv(
   url: string,
@@ -70,6 +86,8 @@ export function buildYtdlpArgv(
   }
 
   const options = opts.options ?? {};
+  appendGlobalYtdlpArgs(argv, options);
+
   if (opts.preset && PRESETS[opts.preset]) {
     argv.push(...PRESETS[opts.preset]);
   }
@@ -81,7 +99,6 @@ export function buildYtdlpArgv(
   if (options.subLangs?.length) argv.push("--sub-langs", options.subLangs.join(","));
   if (options.playlistItems) argv.push("-I", options.playlistItems);
   if (options.noPlaylist) argv.push("--no-playlist");
-  if (options.proxy) argv.push("--proxy", options.proxy);
   if (options.cookiesFromBrowser) argv.push("--cookies-from-browser", options.cookiesFromBrowser);
   if (options.downloadSections) argv.push("--download-sections", options.downloadSections);
   if (options.sponsorblockRemove?.length) {

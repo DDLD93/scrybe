@@ -1,3 +1,6 @@
+import { resolveToolPath } from "@/lib/download/binaries";
+import { resolveYtdlpCookiesPath } from "@/lib/download/cookies";
+
 function env(key: string, fallback?: string): string | undefined {
   const v = process.env[key];
   if (v !== undefined && v !== "") return v;
@@ -32,9 +35,27 @@ export const config = {
   /** Optional — when set, Whisper models use OpenAI's transcription API for word-level timestamps. */
   openaiApiKey: env("OPENAI_API_KEY"),
 
-  ytdlpPath: env("YTDLP_PATH", "yt-dlp")!,
-  ffmpegPath: env("FFMPEG_PATH", "ffmpeg")!,
-  ffprobePath: env("FFPROBE_PATH", "ffprobe")!,
+  ytdlpPath: resolveToolPath(env("YTDLP_PATH", "yt-dlp")!),
+  ffmpegPath: resolveToolPath(env("FFMPEG_PATH", "ffmpeg")!),
+  ffprobePath: resolveToolPath(env("FFPROBE_PATH", "ffprobe")!),
+
+  /** Netscape-format cookies file path (must exist in container). */
+  ytdlpCookiesFile: resolveYtdlpCookiesPath(
+    env("YTDLP_COOKIES_FILE"),
+    env("YTDLP_COOKIES_CONTENT"),
+  ),
+  /** Optional proxy for datacenter IP blocks, e.g. socks5://127.0.0.1:1080 */
+  ytdlpProxy: env("YTDLP_PROXY"),
+  /** YouTube player clients — avoid ios (ignores cookies). */
+  ytdlpYouTubePlayerClient: env(
+    "YTDLP_YOUTUBE_PLAYER_CLIENT",
+    "web,mweb,android,tv_embedded",
+  )!,
+  /** JS runtimes for yt-dlp EJS challenge solving (comma-separated). */
+  ytdlpJsRuntimes: (env("YTDLP_JS_RUNTIMES", "deno,node") ?? "deno,node")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
 
   downloadRetentionHours: envInt("DOWNLOAD_RETENTION_HOURS", 24),
   downloadJobTimeoutSec: envInt("DOWNLOAD_JOB_TIMEOUT_SEC", 3600),

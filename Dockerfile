@@ -24,10 +24,11 @@ RUN npm run build
 
 ENV HOST=0.0.0.0
 ENV PORT=3000
-ENV YTDLP_PATH=yt-dlp
-ENV FFMPEG_PATH=ffmpeg
-ENV FFPROBE_PATH=ffprobe
-ENV PATH="/usr/local/bin:${PATH}"
+ENV YTDLP_PATH=/usr/local/bin/yt-dlp
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
+ENV FFPROBE_PATH=/usr/bin/ffprobe
+ENV YTDLP_JS_RUNTIMES=deno,node
+ENV PATH="/usr/local/bin:/usr/bin:${PATH}"
 
 EXPOSE 3000
 
