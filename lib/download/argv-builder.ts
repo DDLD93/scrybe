@@ -35,11 +35,8 @@ const ALLOWED_FLAGS = new Set([
   "-t", "--remux-video", "--embed-subs", "--embed-thumbnail",
   "--ignore-errors", "--flat-playlist", "--live-from-start",
   "-r", "--limit-rate", "-N", "--concurrent-fragments",
+  "--ignore-config", "--no-update",
 ]);
-
-const STREAM_MERGE_PRESETS: Record<string, string> = {
-  best: "mp4",
-};
 
 export function buildYtdlpArgv(
   url: string,
@@ -55,11 +52,11 @@ export function buildYtdlpArgv(
     writeSubs?: boolean;
     subLangs?: string;
     subFormat?: string;
-    streamToStdout?: boolean;
     printFilename?: boolean;
   },
 ): string[] {
   const argv: string[] = [config.ytdlpPath, "--ffmpeg-location", config.ffmpegPath];
+  argv.push("--ignore-config", "--no-update");
 
   if (opts.simulate) argv.push("--simulate", "--no-download");
   if (opts.listFormats) argv.push("-F", "--no-download");
@@ -82,8 +79,8 @@ export function buildYtdlpArgv(
   if (options.audioFormat) argv.push("--audio-format", options.audioFormat);
   if (options.writeSubs) argv.push("--write-subs");
   if (options.subLangs?.length) argv.push("--sub-langs", options.subLangs.join(","));
-  if (options.playlistItems && !opts.streamToStdout) argv.push("-I", options.playlistItems);
-  if (options.noPlaylist || opts.streamToStdout) argv.push("--no-playlist");
+  if (options.playlistItems) argv.push("-I", options.playlistItems);
+  if (options.noPlaylist) argv.push("--no-playlist");
   if (options.proxy) argv.push("--proxy", options.proxy);
   if (options.cookiesFromBrowser) argv.push("--cookies-from-browser", options.cookiesFromBrowser);
   if (options.downloadSections) argv.push("--download-sections", options.downloadSections);
@@ -92,11 +89,7 @@ export function buildYtdlpArgv(
   }
 
   const outputTemplate = options.outputTemplate ?? "%(title)s.%(ext)s";
-  if (opts.streamToStdout) {
-    argv.push("-o", "-");
-    const mergeFmt = opts.preset ? STREAM_MERGE_PRESETS[opts.preset] : undefined;
-    if (mergeFmt) argv.push("--merge-output-format", mergeFmt);
-  } else if (
+  if (
     opts.outputDir &&
     !opts.simulate &&
     !opts.listFormats &&

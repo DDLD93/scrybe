@@ -1,13 +1,15 @@
-import { spawn } from "child_process";
+import { createReadStream } from "fs";
+import { mkdtemp, readdir, rm, stat } from "fs/promises";
+import { tmpdir } from "os";
+import { extname, join } from "path";
 import { Readable } from "stream";
+import { config } from "@/lib/config";
 import { buildYtdlpArgv, type DownloadJobOptions } from "@/lib/download/argv-builder";
 import {
   guessContentType,
-  presetExtension,
   sanitizeFilename,
 } from "@/lib/download/content-type";
-import { runYtdlpOrThrow } from "@/lib/download/executor";
-import { parseProgressLine } from "@/lib/download/progress-parser";
+import { runYtdlp } from "@/lib/download/executor";
 import {
   completeStreamProgress,
   failStreamProgress,
@@ -22,24 +24,30 @@ export function contentDispositionAttachment(filename: string): string {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
-export async function resolveStreamFilename(
-  url: string,
-  preset: string | null | undefined,
-  options: DownloadJobOptions,
-): Promise<string> {
-  try {
-    const argv = buildYtdlpArgv(url, {
-      preset,
-      options,
-      printFilename: true,
-    });
-    const result = await runYtdlpOrThrow(argv, { timeoutSec: 60 });
-    const name = result.stdout.trim().split("\n").filter(Boolean)[0];
-    if (name) return sanitizeFilename(name);
-  } catch {
-    /* use fallback */
+function isMediaArtifact(name: string): boolean {
+  return (
+    !name.endsWith(".json") &&
+    !name.endsWith(".jpg") &&
+    !name.endsWith(".webp") &&
+    !name.startsWith(".")
+  );
+}
+
+async function pickPrimaryMediaFile(workDir: string): Promise<string | null> {
+  const files = await readdir(workDir);
+  const mediaFiles = files.filter(isMediaArtifact);
+  if (mediaFiles.length === 0) return null;
+
+  let best = mediaFiles[0];
+  let bestSize = 0;
+  for (const name of mediaFiles) {
+    const size = (await stat(join(workDir, name))).size;
+    if (size > bestSize) {
+      bestSize = size;
+      best = name;
+    }
   }
-  return `download.${presetExtension(preset)}`;
+  return bestSize > 0 ? best : null;
 }
 
 export async function createYtdlpDownloadStream(params: {
@@ -54,66 +62,72 @@ export async function createYtdlpDownloadStream(params: {
   filename: string;
 }> {
   const options = params.options ?? {};
-  const filename = await resolveStreamFilename(params.url, params.preset, options);
-  const ext = filename.includes(".") ? filename.split(".").pop()! : presetExtension(params.preset);
-  const contentType = guessContentType(ext);
+  const workDir = await mkdtemp(join(tmpdir(), "scrybe-stream-"));
+
+  const cleanup = async () => {
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+  };
 
   if (params.sessionId) {
     initStreamProgress(params.sessionId);
   }
 
-  const argv = buildYtdlpArgv(params.url, {
-    preset: params.preset,
-    options,
-    streamToStdout: true,
-  });
-  const bin = argv[0];
-  const args = argv.slice(1);
+  try {
+    const argv = buildYtdlpArgv(params.url, {
+      preset: params.preset,
+      options,
+      outputDir: workDir,
+    });
 
-  const child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
-  let stderr = "";
+    const result = await runYtdlp(argv, {
+      timeoutSec: config.downloadJobTimeoutSec,
+      signal: params.signal,
+      onProgress: (p) => {
+        if (params.sessionId) setStreamProgress(params.sessionId, p);
+      },
+    });
 
-  child.stderr.on("data", (chunk: Buffer) => {
-    const text = chunk.toString();
-    stderr += text;
-    if (!params.sessionId) return;
-    for (const line of text.split("\n")) {
-      const progress = parseProgressLine(line);
-      if (progress) setStreamProgress(params.sessionId, progress);
+    if (params.signal?.aborted) {
+      await cleanup();
+      throw new Error("Download aborted");
     }
-  });
 
-  const nodeStream = child.stdout;
-  const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+    if (result.code !== 0) {
+      const msg = result.stderr.trim().split("\n").slice(-3).join(" ") || "yt-dlp failed";
+      if (params.sessionId) failStreamProgress(params.sessionId, msg);
+      await cleanup();
+      throw new Error(msg);
+    }
 
-  const onAbort = () => {
-    child.kill("SIGTERM");
-  };
-  params.signal?.addEventListener("abort", onAbort);
+    const mediaName = await pickPrimaryMediaFile(workDir);
+    if (!mediaName) {
+      const msg = "No media file produced";
+      if (params.sessionId) failStreamProgress(params.sessionId, msg);
+      await cleanup();
+      throw new Error(msg);
+    }
 
-  child.on("close", (code) => {
-    params.signal?.removeEventListener("abort", onAbort);
+    const localPath = join(workDir, mediaName);
+    const filename = sanitizeFilename(mediaName);
+    const ext = extname(mediaName).slice(1).toLowerCase();
+    const contentType = guessContentType(ext);
+
     if (params.sessionId) {
-      if (code === 0 || params.signal?.aborted) {
-        completeStreamProgress(params.sessionId);
-      } else {
-        const msg = stderr.trim().split("\n").slice(-3).join(" ") || "yt-dlp failed";
-        failStreamProgress(params.sessionId, msg);
-      }
+      completeStreamProgress(params.sessionId);
     }
-    if (code !== 0 && !params.signal?.aborted) {
-      const msg = stderr.trim().split("\n").slice(-3).join(" ") || "yt-dlp failed";
-      nodeStream.destroy(new Error(msg));
-    }
-  });
 
-  child.on("error", (err) => {
-    params.signal?.removeEventListener("abort", onAbort);
-    if (params.sessionId) {
-      failStreamProgress(params.sessionId, err.message);
-    }
-    nodeStream.destroy(err);
-  });
+    const nodeStream = createReadStream(localPath);
+    nodeStream.on("close", () => {
+      void cleanup();
+    });
+    nodeStream.on("error", () => {
+      void cleanup();
+    });
 
-  return { body: webStream, contentType, filename };
+    const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+    return { body: webStream, contentType, filename };
+  } catch (err) {
+    await cleanup();
+    throw err;
+  }
 }
