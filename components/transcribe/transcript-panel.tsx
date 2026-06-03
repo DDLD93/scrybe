@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, type KeyboardEvent, type MouseEvent, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { IconDownload, IconPencil } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -295,20 +302,11 @@ export function TranscriptPanel({
                     <span className="mr-3 inline-block min-w-[2.5rem] font-mono text-xs tabular-nums text-muted-foreground/60 md:text-sm">
                       {fmtTime(s.start)}
                     </span>
-                    {segmentWords.map(({ word: w, idx: i }) => (
-                      <span
-                        key={`${i}-${w.start}`}
-                        data-idx={i}
-                        className={cn(
-                          "mr-1 rounded-sm px-0.5 transition-colors duration-150",
-                          i === activeIdx
-                            ? "bg-primary/35 text-foreground ring-1 ring-primary/50 shadow-[0_0_14px_-3px] shadow-primary/50"
-                            : "hover:text-foreground/90",
-                        )}
-                      >
-                        {w.word}
-                      </span>
-                    ))}
+                    <SegmentFormattedText
+                      text={s.text}
+                      segmentWords={segmentWords}
+                      activeIdx={activeIdx}
+                    />
                   </div>
                 );
               })
@@ -330,17 +328,17 @@ export function TranscriptPanel({
               ))
             ) : segments.length > 0 ? (
               segments.map((s) => (
-                <p
+                <div
                   key={s.id}
                   data-segment-id={s.id}
                   onClick={(e) => handleSegmentViewClick(e, s.id, s.start)}
-                  className="mb-4 cursor-pointer rounded-sm px-1 transition-colors last:mb-0 hover:text-foreground"
+                  className="mb-4 cursor-pointer rounded-sm px-1 whitespace-pre-wrap transition-colors last:mb-0 hover:text-foreground"
                 >
                   <span className="mr-3 inline-block min-w-[2.5rem] font-mono text-xs tabular-nums text-muted-foreground/60 md:text-sm">
                     {fmtTime(s.start)}
                   </span>
                   {s.text}
-                </p>
+                </div>
               ))
             ) : (
               <p className="text-muted-foreground">No transcript available.</p>
@@ -357,4 +355,83 @@ function fmtTime(sec: number): string {
   const s = Math.floor(sec);
   const m = Math.floor(s / 60);
   return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function wordSpanClass(active: boolean): string {
+  return cn(
+    "rounded-sm px-0.5 transition-colors duration-150",
+    active
+      ? "bg-primary/35 text-foreground ring-1 ring-primary/50 shadow-[0_0_14px_-3px] shadow-primary/50"
+      : "hover:text-foreground/90",
+  );
+}
+
+/** Renders segment text with preserved whitespace while keeping per-word sync highlights. */
+function SegmentFormattedText({
+  text,
+  segmentWords,
+  activeIdx,
+}: {
+  text: string;
+  segmentWords: Array<{ word: TranscriptWord; idx: number }>;
+  activeIdx: number;
+}) {
+  if (segmentWords.length === 0) {
+    return <span className="whitespace-pre-wrap">{text}</span>;
+  }
+
+  const nodes: ReactNode[] = [];
+  let pos = 0;
+  let matched = 0;
+
+  for (const { word: w, idx: i } of segmentWords) {
+    const found = text.indexOf(w.word, pos);
+    if (found === -1) continue;
+
+    if (found > pos) {
+      nodes.push(
+        <span key={`lit-${pos}`} className="whitespace-pre-wrap">
+          {text.slice(pos, found)}
+        </span>,
+      );
+    }
+
+    nodes.push(
+      <span
+        key={`${i}-${w.start}`}
+        data-idx={i}
+        className={wordSpanClass(i === activeIdx)}
+      >
+        {w.word}
+      </span>,
+    );
+    pos = found + w.word.length;
+    matched++;
+  }
+
+  if (pos < text.length) {
+    nodes.push(
+      <span key={`lit-tail-${pos}`} className="whitespace-pre-wrap">
+        {text.slice(pos)}
+      </span>,
+    );
+  }
+
+  if (matched === 0) {
+    return (
+      <>
+        {segmentWords.map(({ word: w, idx: i }) => (
+          <span
+            key={`${i}-${w.start}`}
+            data-idx={i}
+            className={cn("mr-1", wordSpanClass(i === activeIdx))}
+          >
+            {w.word}
+          </span>
+        ))}
+      </>
+    );
+  }
+
+  return <>{nodes}</>;
 }
