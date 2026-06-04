@@ -48,7 +48,7 @@ export function useTranscribeJobs(pollMs = 2000, paused = false) {
   }, [refresh, pollMs, paused]);
 
   const hasActiveJobs = jobs.some((j) =>
-    ["pending", "chunking", "processing"].includes(j.status),
+    ["fetching", "pending", "chunking", "processing"].includes(j.status),
   );
 
   return { jobs, loading, refresh, hasActiveJobs };

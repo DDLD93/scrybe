@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
-import { parseProgressLine } from "@/lib/download/progress-parser";
-import type { DownloadProgress } from "@/lib/db/schema";
+import { parseProgressLine } from "@/lib/media-fetch/progress-parser";
+import type { FetchProgress } from "@/lib/db/schema";
 
 export type YtdlpResult = {
   stdout: string;
@@ -12,7 +12,7 @@ export async function runYtdlp(
   argv: string[],
   opts?: {
     timeoutSec?: number;
-    onProgress?: (p: DownloadProgress) => void;
+    onProgress?: (p: FetchProgress) => void;
     signal?: AbortSignal;
   },
 ): Promise<YtdlpResult> {
@@ -71,16 +71,4 @@ export async function runYtdlp(
       resolve({ stdout, stderr, code: code ?? 1 });
     });
   });
-}
-
-export async function runYtdlpOrThrow(
-  argv: string[],
-  opts?: Parameters<typeof runYtdlp>[1],
-): Promise<YtdlpResult> {
-  const result = await runYtdlp(argv, opts);
-  if (result.code !== 0) {
-    const msg = result.stderr.trim().split("\n").slice(-3).join(" ") || "yt-dlp failed";
-    throw new Error(msg);
-  }
-  return result;
 }

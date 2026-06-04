@@ -2,7 +2,7 @@ import { isIP } from "net";
 
 const BLOCKED_HOSTS = new Set(["localhost", "metadata.google.internal"]);
 
-export async function validateDownloadUrl(raw: string): Promise<string> {
+export async function validateMediaUrl(raw: string): Promise<string> {
   let url: URL;
   try {
     url = new URL(raw);

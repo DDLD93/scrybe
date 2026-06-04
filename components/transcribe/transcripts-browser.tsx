@@ -332,6 +332,7 @@ function TranscriptToolbar({
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="processing">Processing</SelectItem>
               <SelectItem value="chunking">Chunking</SelectItem>
+              <SelectItem value="fetching">Fetching</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="failed">Failed</SelectItem>
               <SelectItem value="stopped">Stopped</SelectItem>

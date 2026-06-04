@@ -126,7 +126,7 @@ export function TranscriptsTable({ jobs, onRefresh, onEditJob }: TranscriptsTabl
                 : job.status === "completed"
                   ? 100
                   : 0;
-            const isActive = ["pending", "chunking", "processing"].includes(job.status);
+            const isActive = ["fetching", "pending", "chunking", "processing"].includes(job.status);
             const canOpen = job.status === "completed";
 
             function openPlayer() {

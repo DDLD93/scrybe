@@ -27,11 +27,13 @@ import {
   upsertTranscribeChunk,
 } from "@/lib/db/queries";
 import { getBuffer, getFile, putBuffer, putFile } from "@/lib/storage/s3";
+import { fetchSourceForJob, requestFetchStop } from "@/lib/transcribe/fetch-source";
 
 const queuedStops = new Set<string>();
 
 export function requestTranscribeStop(jobId: string) {
   queuedStops.add(jobId);
+  requestFetchStop(jobId);
 }
 
 export function clearTranscribeStop(jobId: string) {
@@ -45,10 +47,21 @@ async function isStopped(jobId: string): Promise<boolean> {
 }
 
 export async function processTranscribeJob(jobId: string): Promise<void> {
-  const job = await getTranscribeJob(jobId);
+  let job = await getTranscribeJob(jobId);
   if (!job || job.status === "completed") return;
+
+  if (!job.sourceKey && job.sourceUrl) {
+    try {
+      await fetchSourceForJob(jobId, job.sourceUrl, job.fetchPreset);
+    } catch {
+      return;
+    }
+    job = await getTranscribeJob(jobId);
+    if (!job?.sourceKey) return;
+  }
+
   if (!job.sourceKey) {
-    await updateTranscribeJob(jobId, { status: "failed", error: "Missing source_key" });
+    await updateTranscribeJob(jobId, { status: "failed", error: "Missing source file" });
     return;
   }
 
