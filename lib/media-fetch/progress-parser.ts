@@ -1,6 +1,6 @@
-import type { DownloadProgress } from "@/lib/db/schema";
+import type { FetchProgress } from "@/lib/db/schema";
 
-export function parseProgressLine(line: string): DownloadProgress | null {
+export function parseProgressLine(line: string): FetchProgress | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("download:")) return null;
   const parts = trimmed.slice("download:".length).split("|");

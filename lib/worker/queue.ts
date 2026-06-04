@@ -1,14 +1,11 @@
-import { getActiveDownloadJobs, getActiveTranscribeJobs } from "@/lib/db/queries";
-import { processDownloadJob, requestDownloadStop } from "@/lib/download/processor";
+import { getActiveTranscribeJobs } from "@/lib/db/queries";
 import {
   clearTranscribeStop,
   processTranscribeJob,
   requestTranscribeStop,
 } from "@/lib/transcribe/processor";
 
-export type WorkerJob =
-  | { type: "download"; jobId: string }
-  | { type: "transcribe"; jobId: string };
+export type WorkerJob = { type: "transcribe"; jobId: string };
 
 const queue: WorkerJob[] = [];
 const queuedKeys = new Set<string>();
@@ -34,11 +31,7 @@ export async function pump(): Promise<void> {
       const job = queue.shift()!;
       queuedKeys.delete(jobKey(job));
       try {
-        if (job.type === "download") {
-          await processDownloadJob(job.jobId);
-        } else {
-          await processTranscribeJob(job.jobId);
-        }
+        await processTranscribeJob(job.jobId);
       } catch (err) {
         console.error(`Worker job ${job.type}/${job.jobId} failed:`, err);
       }
@@ -56,17 +49,12 @@ export function requestStop(job: WorkerJob): void {
     queuedKeys.delete(key);
     return;
   }
-  if (job.type === "download") requestDownloadStop(job.jobId);
-  else requestTranscribeStop(job.jobId);
+  requestTranscribeStop(job.jobId);
 }
 
 export async function recover(): Promise<void> {
   try {
-    const [downloads, transcribes] = await Promise.all([
-      getActiveDownloadJobs(),
-      getActiveTranscribeJobs(),
-    ]);
-    for (const { id } of downloads) enqueue({ type: "download", jobId: id });
+    const transcribes = await getActiveTranscribeJobs();
     for (const { id } of transcribes) {
       clearTranscribeStop(id);
       enqueue({ type: "transcribe", jobId: id });

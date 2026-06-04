@@ -1,14 +1,13 @@
 # Scrybe
 
-Scrybe is a self-hosted media toolkit: download audio and video with [yt-dlp](https://github.com/yt-dlp/yt-dlp), transcribe it through [OpenRouter](https://openrouter.ai), and replay transcripts with **word-level sync** from object storage.
+Scrybe is a self-hosted audio transcriber: upload files or fetch media from URLs with [yt-dlp](https://github.com/yt-dlp/yt-dlp), transcribe through [OpenRouter](https://openrouter.ai), and replay transcripts with **word-level sync** from object storage.
 
-Two modules, one app — loosely coupled, built on Next.js.
+Built on Next.js with a transcript-centric UI.
 
-| Module | Route | What it does |
-|--------|-------|--------------|
-| **Downloader** | `/download` | Inspect URLs, pick formats, stream downloads to your browser |
-| **Transcriber** | `/transcribe` | Upload or ingest audio, chunk with ffmpeg, transcribe, export |
-| **Player** | `/transcribe/[jobId]` | Range-streamed playback with clickable, highlighted words |
+| Surface | Route | What it does |
+|---------|-------|--------------|
+| **Transcripts** | `/transcribe` | Library, folders, new upload/URL jobs |
+| **Player** | `/transcribe/[jobId]` | Full-width transcript reader with docked playback |
 
 ---
 
@@ -22,9 +21,9 @@ Browser  →  Next.js (UI + API)  →  Postgres (jobs, settings)
               S3-compatible storage (sources, chunks, transcripts)
 ```
 
-HTTP handlers enqueue work. A separate **worker** drains the queue — one download job and one transcription job at a time by default. All durable files live in object storage; the app never serves multi-gigabyte uploads from local disk.
+HTTP handlers enqueue work. A separate **worker** drains the transcription queue (URL fetch + chunking + STT). All durable files live in object storage.
 
-Infrastructure is **remote**: point environment variables at your Postgres and S3 bucket. No Docker Compose required.
+Infrastructure is **remote**: point environment variables at your Postgres and S3 bucket.
 
 ---
 
@@ -33,14 +32,14 @@ Infrastructure is **remote**: point environment variables at your Postgres and S
 **On the machine running the app and worker:**
 
 - Node.js 20+
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — use the **standalone** binary ([`yt-dlp.exe`](https://github.com/yt-dlp/yt-dlp/releases) on Windows, `yt-dlp_linux` in Docker). The Python script (`#!/usr/bin/env python3`) requires Python and will fail without it.
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — standalone binary (for URL import)
 - [ffmpeg](https://ffmpeg.org) and ffprobe
 
 **Remote services:**
 
 - PostgreSQL
-- S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, etc.)
-- [OpenRouter](https://openrouter.ai) API key (transcriber only)
+- S3-compatible object storage
+- [OpenRouter](https://openrouter.ai) API key
 
 ---
 
@@ -49,7 +48,7 @@ Infrastructure is **remote**: point environment variables at your Postgres and S
 ```bash
 git clone <repo-url> scrybe && cd scrybe
 npm install
-cp .env.example .env   # fill in remote DATABASE_URL, S3, OPENROUTER_API_KEY
+cp .env.example .env   # fill in DATABASE_URL, S3, OPENROUTER_API_KEY
 npm run db:push        # apply schema to Postgres
 ```
 
@@ -57,31 +56,28 @@ Run the web app and worker in separate terminals:
 
 ```bash
 npm run dev            # http://localhost:3000
-npm run worker         # drains download + transcription queues
+npm run worker         # drains transcription queue
 ```
 
-Open `/download` to fetch media, or `/transcribe` to upload audio and manage transcription jobs.
+Open `/` (redirects to `/transcribe`).
+
+**Migrating from the old download module:** run [`scripts/drop-download-tables.sql`](scripts/drop-download-tables.sql) on your database, then `npm run db:push`.
 
 ---
 
 ## Environment
 
-Copy [`.env.example`](.env.example) and configure:
-
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `DATABASE_URL` | Yes | Remote Postgres connection string |
-| `AWS_S3_ENDPOINT` | Yes | S3-compatible endpoint URL |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Yes | Storage credentials |
-| `AWS_S3_BUCKET_NAME` | Yes | Target bucket |
-| `AWS_S3_FORCE_PATH_STYLE` | Yes | `true` for MinIO-style; `false` for native AWS S3 |
-| `OPENROUTER_API_KEY` | Transcriber | STT / chat model access |
-| `YTDLP_PATH` | Download | Path to yt-dlp binary (default: `yt-dlp`) |
-| `FFMPEG_PATH` / `FFPROBE_PATH` | Transcriber | ffmpeg binaries (default: `ffmpeg`, `ffprobe`) |
+| `DATABASE_URL` | Yes | Postgres connection string |
+| `AWS_S3_*` | Yes | Object storage |
+| `OPENROUTER_API_KEY` | Yes | STT / model access |
+| `YTDLP_PATH` | URL import | yt-dlp binary (default: `yt-dlp`) |
+| `YTDLP_COOKIES_FILE` / `YTDLP_COOKIES_CONTENT` | No | YouTube auth |
+| `FFMPEG_PATH` / `FFPROBE_PATH` | Yes | ffmpeg binaries |
+| `TRANSCRIBE_FETCH_TIMEOUT_SEC` | No | Max yt-dlp runtime per URL job (default: 3600) |
 | `TRANSCRIBE_UPLOAD_MAX_BYTES` | No | Upload cap (default: 1 GiB) |
 | `WORKER_CONCURRENCY` | No | Parallel jobs per worker (default: 1) |
-
-The download module can inspect URLs without Postgres or storage. Transcription requires all three: Postgres, S3, and OpenRouter.
 
 ---
 
@@ -93,7 +89,6 @@ The download module can inspect URLs without Postgres or storage. Transcription 
 | `npm run build` / `npm start` | Production build and server |
 | `npm run worker` | Background job processor |
 | `npm run db:push` | Push Drizzle schema to Postgres |
-| `npm run db:studio` | Open Drizzle Studio |
 | `npm run db:reset` | Reset database (destructive) |
 | `npm run lint` | ESLint |
 
@@ -101,27 +96,21 @@ The download module can inspect URLs without Postgres or storage. Transcription 
 
 ## UI overview
 
-**Download** — paste a URL, inspect formats, choose a preset (MP3, AAC, MP4, …), and save the file directly to your computer. Background jobs (for transcribe bridge) still appear in the recent downloads table.
+**Transcripts** — library with folders, search, and **New Transcript** (upload or URL). Desktop shows a recent-jobs sidebar on transcribe routes.
 
-**Transcribe** — jobs table is the home screen. Click **New Transcript** to upload a file or fetch from URL. Configure chunk size, model, and an optional system prompt. Upload progress is shown while the file streams to storage.
-
-**Player** — completed jobs open a synced transcript view. Click any word to seek; export JSON or Markdown.
+**Player** — full-width synced transcript; audio controls docked at the bottom. Click words to seek; export JSON or Markdown.
 
 ---
 
 ## API
 
-REST endpoints under `/api/download/*` and `/api/transcribe/*`. Notable routes:
+Notable routes under `/api/transcribe/*`:
 
-- `GET /api/download/info?url=` — metadata preview (no job)
-- `POST /api/download/stream` — stream media straight to the browser
-- `POST /api/download/jobs` — background download (for transcribe bridge)
 - `POST /api/transcribe` — upload audio (raw body + query params)
+- `POST /api/transcribe/jobs/from-url` — start job from media URL (yt-dlp fetch → transcribe)
+- `GET /api/transcribe/jobs/[id]` — job status
 - `GET /api/transcribe/jobs/[id]/audio` — range-request streaming
 - `GET /api/transcribe/jobs/[id]/transcript` — word-level JSON
-- `POST /api/download/jobs/[id]/transcribe` — bridge download → transcription
-
-See [`specs.md`](specs.md) for full contracts and [`design.md`](design.md) for architecture and data models.
 
 ---
 
@@ -129,16 +118,15 @@ See [`specs.md`](specs.md) for full contracts and [`design.md`](design.md) for a
 
 ```
 app/
-  download/          Downloader UI
-  transcribe/        Transcriber UI + synced player
-  api/               Route handlers
-components/          shadcn/ui + feature components
+  transcribe/        Transcript library + player
+  api/transcribe/    Route handlers
+components/          UI + transcribe feature components
 lib/
-  download/          yt-dlp wrapper and job processor
-  transcribe/        Chunker, OpenRouter client, compiler
+  media-fetch/       yt-dlp URL fetch (internal)
+  transcribe/        Chunker, OpenRouter, compiler
   storage/           S3 client
   db/                Drizzle schema and queries
-  worker/            Shared job queue
+  worker/            Job queue
 workers/
   server.ts          Standalone worker entrypoint
 ```
@@ -147,10 +135,9 @@ workers/
 
 ## Production notes
 
-- Run **at least two processes**: the Next.js server and `npm run worker`. They share Postgres and S3 via env vars.
-- Ensure the S3 bucket exists and credentials have read/write access. The app creates keys under `downloads/` and `jobs/`.
-- ffmpeg and yt-dlp must be on `PATH` (or set explicitly in env) wherever the worker runs.
-- Set `AWS_S3_FORCE_PATH_STYLE=false` when using native AWS S3 without a custom endpoint.
+- Run **two processes**: Next.js server and `npm run worker`.
+- S3 keys are created under `jobs/{id}/…`.
+- ffmpeg and yt-dlp must be available wherever the worker runs.
 
 ---
 

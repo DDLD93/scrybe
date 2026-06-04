@@ -63,7 +63,7 @@ export function NewTranscriptDialog({
   const [url, setUrl] = useState("");
   const [preset, setPreset] = useState<string>("mp3");
   const [submitting, setSubmitting] = useState(false);
-  const [urlPhase, setUrlPhase] = useState<"idle" | "downloading" | "transcribing">("idle");
+  const [urlPhase, setUrlPhase] = useState<"idle" | "fetching">("idle");
   const [uploadOverlay, setUploadOverlay] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     phase: "uploading",
@@ -149,37 +149,38 @@ export function NewTranscriptDialog({
     if (!url || submitting) return;
 
     setSubmitting(true);
-    setUrlPhase("downloading");
+    setUrlPhase("fetching");
 
     try {
-      const dlRes = await fetch("/api/download/jobs", {
+      const res = await fetch("/api/transcribe/jobs/from-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, preset }),
+        body: JSON.stringify({
+          url,
+          preset,
+          model,
+          size,
+          unit,
+          prompt,
+          folderId: folderId === "__none__" ? undefined : folderId,
+        }),
       });
-      const dlData = await dlRes.json();
-      if (!dlRes.ok) throw new Error(dlData.error ?? "Download failed");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to start");
 
-      const jobId = dlData.jobId;
+      const jobId = data.jobId as string;
       for (let i = 0; i < 300; i++) {
         await new Promise((r) => setTimeout(r, 2000));
-        const st = await fetch(`/api/download/jobs/${jobId}`);
-        const job = await st.json();
-        if (job.status === "completed") break;
-        if (job.status === "failed") throw new Error(job.error ?? "Download failed");
+        const st = await fetch(`/api/transcribe/jobs/${jobId}`);
+        const payload = await st.json();
+        const status = payload.job?.status;
+        if (status && status !== "fetching") {
+          if (status === "failed") throw new Error(payload.job?.error ?? "Fetch failed");
+          break;
+        }
       }
 
-      setUrlPhase("transcribing");
-      const q = new URLSearchParams({ model, size, unit, prompt });
-      if (folderId !== "__none__") q.set("folderId", folderId);
-      const txRes = await fetch(
-        `/api/download/jobs/${jobId}/transcribe?${q}`,
-        { method: "POST" },
-      );
-      const txData = await txRes.json();
-      if (!txRes.ok) throw new Error(txData.error ?? "Transcribe failed");
-
-      toast.success(`Transcription started — job ${txData.jobId.slice(0, 8)}…`);
+      toast.success(`Transcription started — job ${jobId.slice(0, 8)}…`);
       onOpenChange(false);
       onSuccess();
     } catch (err) {
@@ -340,19 +341,13 @@ export function NewTranscriptDialog({
                 />
 
                 <Button type="submit" disabled={!url || busy} className="w-full" size="lg">
-                  {urlPhase === "downloading" && (
+                  {urlPhase === "fetching" && (
                     <>
                       <Spinner className="size-4" />
-                      Downloading…
+                      Fetching media…
                     </>
                   )}
-                  {urlPhase === "transcribing" && (
-                    <>
-                      <Spinner className="size-4" />
-                      Starting transcription…
-                    </>
-                  )}
-                  {urlPhase === "idle" && "Download & transcribe"}
+                  {urlPhase === "idle" && "Fetch & transcribe"}
                 </Button>
               </form>
             </TabsContent>

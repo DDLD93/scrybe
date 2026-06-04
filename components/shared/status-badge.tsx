@@ -6,6 +6,7 @@ const STATUS_STYLES: Record<string, string> = {
   failed: "border-destructive/30 bg-destructive/10 text-destructive",
   stopped: "border-amber-500/30 bg-amber-500/10 text-amber-400",
   pending: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
+  fetching: "border-violet-500/30 bg-violet-500/10 text-violet-400",
   chunking: "border-sky-500/30 bg-sky-500/10 text-sky-400",
   processing: "border-primary/30 bg-primary/10 text-primary",
 };

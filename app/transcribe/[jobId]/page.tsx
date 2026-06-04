@@ -281,7 +281,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   const lastSavedLabel = lastSavedAt ? formatSavedAgo(lastSavedAt) : null;
 
   return (
-    <div className="flex h-[calc(100dvh-7.5rem)] flex-col overflow-hidden animate-in fade-in duration-500 md:h-[calc(100dvh-4rem)]">
+    <div className="flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden px-4 pb-24 pt-4 animate-in fade-in duration-500 md:h-[calc(100dvh-2rem)] md:px-6 md:pb-28 md:pt-6">
       <audio
         ref={audioRef}
         src={`/api/transcribe/jobs/${jobId}/audio`}
@@ -315,7 +315,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
         </Card>
       )}
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[1fr_16rem] md:gap-6">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
         <div className="glass-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl ring-1 ring-border/50">
           <TranscriptPanel
             transcriptRef={transcriptRef}
@@ -342,13 +342,9 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
             className="flex-1"
           />
         </div>
-
-        <aside className="hidden min-h-0 md:block">
-          <AudioPlayerCompact variant="sidebar" {...playerProps} />
-        </aside>
       </div>
 
-      <AudioPlayerCompact variant="dock" className="md:hidden" {...playerProps} />
+      <AudioPlayerCompact variant="dock" {...playerProps} />
     </div>
   );
 }

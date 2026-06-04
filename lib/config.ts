@@ -1,5 +1,5 @@
-import { resolveToolPath } from "@/lib/download/binaries";
-import { resolveYtdlpCookiesPath } from "@/lib/download/cookies";
+import { resolveToolPath } from "@/lib/tools/binaries";
+import { resolveYtdlpCookiesPath } from "@/lib/media-fetch/cookies";
 
 function env(key: string, fallback?: string): string | undefined {
   const v = process.env[key];
@@ -57,8 +57,7 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
 
-  downloadRetentionHours: envInt("DOWNLOAD_RETENTION_HOURS", 24),
-  downloadJobTimeoutSec: envInt("DOWNLOAD_JOB_TIMEOUT_SEC", 3600),
+  transcribeFetchTimeoutSec: envInt("TRANSCRIBE_FETCH_TIMEOUT_SEC", 3600),
   transcribeUploadMaxBytes: envInt("TRANSCRIBE_UPLOAD_MAX_BYTES", 1024 * 1024 * 1024),
   workerConcurrency: envInt("WORKER_CONCURRENCY", 1),
 } as const;

@@ -11,13 +11,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export type DownloadProgress = {
+export type FetchProgress = {
   percent?: number;
   speed?: string;
   eta?: number;
 };
-
-export type DownloadOptions = Record<string, unknown>;
 
 export type TranscriptWord = {
   word: string;
@@ -64,6 +62,9 @@ export const transcribeJobs = pgTable("transcribe_jobs", {
   hasWordTimings: boolean("has_word_timings").notNull().default(false),
   language: text("language"),
   error: text("error"),
+  sourceUrl: text("source_url"),
+  fetchPreset: text("fetch_preset"),
+  fetchProgressJson: jsonb("fetch_progress_json").$type<FetchProgress>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -94,28 +95,4 @@ export const transcribeSettings = pgTable("transcribe_settings", {
   model: text("model"),
   systemPrompt: text("system_prompt"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const downloadJobs = pgTable("download_jobs", {
-  id: uuid("id").primaryKey(),
-  url: text("url").notNull(),
-  preset: text("preset"),
-  optionsJson: jsonb("options_json").$type<DownloadOptions>().notNull().default({}),
-  status: text("status").notNull().default("pending"),
-  progressJson: jsonb("progress_json").$type<DownloadProgress>(),
-  error: text("error"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const downloadArtifacts = pgTable("download_artifacts", {
-  id: uuid("id").primaryKey(),
-  jobId: uuid("job_id")
-    .notNull()
-    .references(() => downloadJobs.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  objectKey: text("object_key").notNull(),
-  contentType: text("content_type"),
-  fileSize: bigint("file_size", { mode: "number" }),
-  role: text("role").notNull().default("media"),
 });

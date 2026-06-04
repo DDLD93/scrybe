@@ -2,17 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconDownload, IconMicrophone } from "@tabler/icons-react";
+import { IconMicrophone } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
-const NAV_ITEMS = [
-  { href: "/download", label: "Download", icon: IconDownload },
-  { href: "/transcribe", label: "Transcribe", icon: IconMicrophone },
-] as const;
+const NAV_ITEMS = [{ href: "/transcribe", label: "Transcripts", icon: IconMicrophone }] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const onJobPage = /^\/transcribe\/[^/]+$/.test(pathname);
 
   return (
     <div className="ambient-bg relative flex min-h-screen">
@@ -47,13 +45,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="border-t border-border/40 p-4">
           <p className="text-[0.65rem] text-muted-foreground">
-            Media downloader &amp; audio transcriber
+            Audio transcriber with word-level sync
           </p>
         </div>
       </aside>
 
       {/* Main content */}
-      <div className="flex min-h-screen flex-1 flex-col pb-16 md:pb-0">
+      <div className={cn("flex min-h-screen flex-1 flex-col", !onJobPage && "pb-16 md:pb-0")}>
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 bg-card/30 px-4 backdrop-blur-xl md:hidden">
           <div className="flex items-center gap-2">
             <div className="flex size-7 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
@@ -63,28 +61,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <ThemeToggle />
         </header>
-        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <main className={cn("flex-1", onJobPage ? "p-0 md:p-0" : "p-4 md:p-8")}>{children}</main>
       </div>
 
-      {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border/40 bg-card/80 backdrop-blur-xl md:hidden">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex flex-1 flex-col items-center gap-1 py-3 text-[0.65rem] transition-colors",
-                active ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              <Icon className={cn("size-5", active && "drop-shadow-[0_0_8px] drop-shadow-primary/60")} />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Mobile bottom nav — hidden on job player for more transcript space */}
+      {!onJobPage && (
+        <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border/40 bg-card/80 backdrop-blur-xl md:hidden">
+          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+            const active = pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  "flex flex-1 flex-col items-center gap-1 py-3 text-[0.65rem] transition-colors",
+                  active ? "text-primary" : "text-muted-foreground",
+                )}
+              >
+                <Icon
+                  className={cn("size-5", active && "drop-shadow-[0_0_8px] drop-shadow-primary/60")}
+                />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }
