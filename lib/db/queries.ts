@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
+  type LibraryViewMode,
   transcribeChunks,
   transcribeFolders,
   transcribeJobs,
@@ -235,36 +236,50 @@ export async function getTranscribeSettings() {
   return row ?? null;
 }
 
-export async function upsertTranscribeSettings(data: {
+export type TranscribeSettingsPatch = {
   chunkUnit?: string | null;
   chunkSize?: string | null;
   model?: string | null;
+  pdfModel?: string | null;
+  defaultView?: LibraryViewMode | null;
   systemPrompt?: string | null;
   lastSystemPromptId?: string | null;
-}) {
+  lastPdfSystemPromptId?: string | null;
+};
+
+export async function upsertTranscribeSettings(data: TranscribeSettingsPatch) {
   const db = getDb();
-  await db
-    .insert(transcribeSettings)
-    .values({
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  if ("chunkUnit" in data) patch.chunkUnit = data.chunkUnit ?? null;
+  if ("chunkSize" in data) patch.chunkSize = data.chunkSize ?? null;
+  if ("model" in data) patch.model = data.model ?? null;
+  if ("pdfModel" in data) patch.pdfModel = data.pdfModel ?? null;
+  if ("defaultView" in data) patch.defaultView = data.defaultView ?? null;
+  if ("systemPrompt" in data) patch.systemPrompt = data.systemPrompt ?? null;
+  if ("lastSystemPromptId" in data) patch.lastSystemPromptId = data.lastSystemPromptId ?? null;
+  if ("lastPdfSystemPromptId" in data) patch.lastPdfSystemPromptId = data.lastPdfSystemPromptId ?? null;
+
+  const existing = await getTranscribeSettings();
+  if (!existing) {
+    await db.insert(transcribeSettings).values({
       id: "last_used",
-      chunkUnit: data.chunkUnit ?? null,
-      chunkSize: data.chunkSize ?? null,
-      model: data.model ?? null,
-      systemPrompt: data.systemPrompt ?? null,
-      lastSystemPromptId: data.lastSystemPromptId ?? null,
+      chunkUnit: (patch.chunkUnit as string | null) ?? null,
+      chunkSize: (patch.chunkSize as string | null) ?? null,
+      model: (patch.model as string | null) ?? null,
+      pdfModel: (patch.pdfModel as string | null) ?? null,
+      defaultView: (patch.defaultView as LibraryViewMode | null) ?? null,
+      systemPrompt: (patch.systemPrompt as string | null) ?? null,
+      lastSystemPromptId: (patch.lastSystemPromptId as string | null) ?? null,
+      lastPdfSystemPromptId: (patch.lastPdfSystemPromptId as string | null) ?? null,
       updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: transcribeSettings.id,
-      set: {
-        chunkUnit: data.chunkUnit ?? null,
-        chunkSize: data.chunkSize ?? null,
-        model: data.model ?? null,
-        systemPrompt: data.systemPrompt ?? null,
-        lastSystemPromptId: data.lastSystemPromptId ?? null,
-        updatedAt: new Date(),
-      },
     });
+    return;
+  }
+
+  await db
+    .update(transcribeSettings)
+    .set(patch)
+    .where(eq(transcribeSettings.id, "last_used"));
 }
 
 export async function getActiveTranscribeJobs() {

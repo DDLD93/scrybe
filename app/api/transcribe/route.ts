@@ -6,7 +6,14 @@ import { mkdtemp, unlink } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { config } from "@/lib/config";
-import { createTranscribeJob, getTranscribeFolder, listTranscribeJobs, upsertTranscribeSettings } from "@/lib/db/queries";
+import {
+  createTranscribeJob,
+  getTranscribeFolder,
+  getTranscribeSettings,
+  listTranscribeJobs,
+  upsertTranscribeSettings,
+} from "@/lib/db/queries";
+import { resolveChunkingForJob, resolveModelForJob, toSystemSettings } from "@/lib/transcribe/settings";
 import { putFile } from "@/lib/storage/s3";
 import { detectJobKind, resolveSystemPromptForJob } from "@/lib/system-prompts";
 import { isVisionModelId } from "@/lib/transcribe/openrouter";
@@ -50,11 +57,9 @@ export async function POST(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const filename = (sp.get("filename") ?? "audio.mp3").replace(/[\\/]/g, "_");
     const sizeRaw = sp.get("size");
-    const model = sp.get("model");
+    const modelParam = sp.get("model");
     const customPrompt = sp.get("prompt");
     const systemPromptId = sp.get("systemPromptId");
-
-    if (!model) return error("Missing 'model'");
 
     const folderIdRaw = sp.get("folderId");
     const folderId = await resolveFolderId(folderIdRaw);
@@ -64,21 +69,29 @@ export async function POST(req: NextRequest) {
     const jobKind = detectJobKind(filename, contentType);
     const fileType = jobKind === "pdf" ? "pdf" : "audio";
 
-    let unit = sp.get("unit") === "mb" ? "mb" : "seconds";
-    let size = 30;
-    if (jobKind === "pdf") {
-      unit = "page";
-      size = 1;
-    } else {
-      if (!sizeRaw) return error("Missing 'size'");
-      size = parseFloat(sizeRaw);
-      if (!Number.isFinite(size) || size <= 0) return error("Invalid 'size'");
+    const settings = toSystemSettings(await getTranscribeSettings());
+    const model = resolveModelForJob(settings, jobKind, modelParam);
+    if (!model) return error("No model configured — set defaults in Settings");
+
+    const { unit, size } = resolveChunkingForJob(
+      settings,
+      jobKind,
+      sp.get("unit"),
+      sizeRaw,
+    );
+    if (jobKind === "audio" && (!Number.isFinite(size) || size <= 0)) {
+      return error("Invalid 'size'");
     }
 
     const resolved = await resolveSystemPromptForJob({
       fileType,
-      systemPromptId,
-      customPrompt,
+      systemPromptId:
+        systemPromptId ??
+        (fileType === "pdf"
+          ? settings.lastPdfSystemPromptId
+          : settings.lastSystemPromptId) ??
+        undefined,
+      customPrompt: customPrompt ?? settings.customSystemPrompt ?? undefined,
     });
     if (resolved === "invalid_preset") return error("Invalid system prompt for this file type", 400);
 
@@ -134,13 +147,19 @@ export async function POST(req: NextRequest) {
       folderId,
     });
 
-    await upsertTranscribeSettings({
-      chunkUnit: jobKind === "audio" ? unit : undefined,
-      chunkSize: jobKind === "audio" ? String(size) : undefined,
-      model,
-      systemPrompt: resolved.systemPrompt,
-      lastSystemPromptId: resolved.systemPromptId,
-    });
+    await upsertTranscribeSettings(
+      jobKind === "pdf"
+        ? {
+            pdfModel: model,
+            lastPdfSystemPromptId: resolved.systemPromptId ?? null,
+          }
+        : {
+            chunkUnit: unit,
+            chunkSize: String(size),
+            model,
+            lastSystemPromptId: resolved.systemPromptId ?? null,
+          },
+    );
 
     enqueue({ type: "transcribe", jobId });
     return accepted({ jobId });

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { IconCloudUpload } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ModelSelect } from "@/components/transcribe/model-select";
-import {
-  buildPromptPayload,
-  SystemPromptFields,
-  type SystemPromptPreset,
-} from "@/components/transcribe/system-prompt-fields";
 import {
   Select,
   SelectContent,
@@ -28,13 +21,11 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { UploadOverlay } from "@/components/transcribe/upload-overlay";
-import { detectFileKind, type FileKind } from "@/lib/detect-file-kind";
+import { detectFileKind } from "@/lib/detect-file-kind";
 import { uploadTranscribeFile, type UploadProgress } from "@/lib/upload-with-progress";
 import { cn } from "@/lib/utils";
 
 import type { TranscribeFolder } from "@/hooks/use-transcribe-folders";
-
-type Model = { id: string; name: string };
 
 type NewTranscriptDialogProps = {
   open: boolean;
@@ -50,16 +41,8 @@ export function NewTranscriptDialog({
   folders = [],
 }: NewTranscriptDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [models, setModels] = useState<Model[]>([]);
-  const [presets, setPresets] = useState<SystemPromptPreset[]>([]);
   const [file, setFile] = useState<File | null>(null);
-  const [fileKind, setFileKind] = useState<FileKind>("audio");
   const [dragOver, setDragOver] = useState(false);
-  const [unit, setUnit] = useState("seconds");
-  const [size, setSize] = useState("30");
-  const [model, setModel] = useState("");
-  const [promptSelection, setPromptSelection] = useState("__none__");
-  const [customPrompt, setCustomPrompt] = useState("");
   const [folderId, setFolderId] = useState<string>("__none__");
   const [submitting, setSubmitting] = useState(false);
   const [uploadOverlay, setUploadOverlay] = useState(false);
@@ -68,64 +51,8 @@ export function NewTranscriptDialog({
     percent: 0,
   });
 
-  const loadModelsAndPrompts = useCallback(async (kind: FileKind) => {
-    const [mRes, pRes] = await Promise.all([
-      fetch(`/api/transcribe/models?kind=${kind}`),
-      fetch(`/api/system-prompts?fileType=${kind}`),
-    ]);
-    const mData = await mRes.json();
-    const pData = await pRes.json();
-    const list: Model[] = mData.models ?? [];
-    setModels(list);
-    setPresets(
-      (pData.prompts ?? []).map((p: { id: string; name: string; prompt: string }) => ({
-        id: p.id,
-        name: p.name,
-        prompt: p.prompt,
-      })),
-    );
-    if (list.length && !list.some((m) => m.id === model)) {
-      setModel(list[0].id);
-    }
-  }, [model]);
-
-  useEffect(() => {
-    if (!open) return;
-    async function init() {
-      try {
-        const sRes = await fetch("/api/transcribe/settings");
-        const sData = await sRes.json();
-        const settings = sData.settings;
-        await loadModelsAndPrompts("audio");
-        if (settings) {
-          if (settings.chunkUnit) setUnit(settings.chunkUnit);
-          if (settings.chunkSize) setSize(String(settings.chunkSize));
-          if (settings.lastSystemPromptId) {
-            setPromptSelection(settings.lastSystemPromptId);
-          } else if (settings.systemPrompt) {
-            setPromptSelection("__custom__");
-            setCustomPrompt(settings.systemPrompt);
-          }
-          if (settings.model) setModel(settings.model);
-        }
-      } catch {
-        setModels([{ id: "openai/whisper-1", name: "Whisper 1" }]);
-        setModel("openai/whisper-1");
-      }
-    }
-    init();
-  }, [open, loadModelsAndPrompts]);
-
-  useEffect(() => {
-    if (!file) return;
-    const kind = detectFileKind(file);
-    setFileKind(kind);
-    void loadModelsAndPrompts(kind);
-  }, [file, loadModelsAndPrompts]);
-
   const handleFile = useCallback((f: File | null) => {
     setFile(f);
-    if (f) setFileKind(detectFileKind(f));
   }, []);
 
   function onDrop(e: React.DragEvent) {
@@ -143,23 +70,15 @@ export function NewTranscriptDialog({
     setUploadOverlay(true);
     setUploadProgress({ phase: "uploading", percent: 0 });
 
-    const promptPayload = buildPromptPayload(promptSelection, customPrompt);
-
     try {
       const data = await uploadTranscribeFile(
         file,
         {
-          unit: fileKind === "pdf" ? "page" : unit,
-          size: fileKind === "pdf" ? "1" : size,
-          model,
-          ...promptPayload,
           folderId: folderId === "__none__" ? undefined : folderId,
         },
         setUploadProgress,
       );
-      toast.success(
-        `Processing started — job ${data.jobId.slice(0, 8)}…`,
-      );
+      toast.success(`Processing started — job ${data.jobId.slice(0, 8)}…`);
       setFile(null);
       onOpenChange(false);
       onSuccess();
@@ -172,7 +91,7 @@ export function NewTranscriptDialog({
   }
 
   const busy = submitting || uploadOverlay;
-  const isPdf = fileKind === "pdf";
+  const isPdf = file ? detectFileKind(file) === "pdf" : false;
 
   return (
     <>
@@ -191,7 +110,9 @@ export function NewTranscriptDialog({
         <DialogContent className="sm:max-w-lg" showCloseButton={!busy}>
           <DialogHeader>
             <DialogTitle>New file</DialogTitle>
-            <DialogDescription>Upload audio or PDF, or import from a media URL.</DialogDescription>
+            <DialogDescription>
+              Upload audio or PDF. Processing uses your defaults from Settings.
+            </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={submitUpload} className="space-y-4">
@@ -236,33 +157,25 @@ export function NewTranscriptDialog({
               />
             </div>
 
-            <FormFields
-              unit={unit}
-              setUnit={setUnit}
-              size={size}
-              setSize={setSize}
-              model={model}
-              setModel={setModel}
-              models={models}
-              presets={presets}
-              promptSelection={promptSelection}
-              setPromptSelection={setPromptSelection}
-              customPrompt={customPrompt}
-              setCustomPrompt={setCustomPrompt}
-              folderId={folderId}
-              setFolderId={setFolderId}
-              folders={folders}
-              hideChunking={isPdf}
-              fileKind={fileKind}
-              disabled={busy}
-            />
+            <div className="space-y-2">
+              <Label>Folder</Label>
+              <Select value={folderId} onValueChange={setFolderId} disabled={busy}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Uncategorized" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None (uncategorized)</SelectItem>
+                  {folders.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <Button type="submit" disabled={!file || busy} className="w-full" size="lg">
-              {submitting ? (
-                <Spinner className="size-4" />
-              ) : (
-                "Start processing"
-              )}
+              {submitting ? <Spinner className="size-4" /> : "Start processing"}
             </Button>
           </form>
         </DialogContent>
@@ -270,123 +183,3 @@ export function NewTranscriptDialog({
     </>
   );
 }
-
-type FormFieldsProps = {
-  unit: string;
-  setUnit: (v: string) => void;
-  size: string;
-  setSize: (v: string) => void;
-  model: string;
-  setModel: (v: string) => void;
-  models: Model[];
-  presets: SystemPromptPreset[];
-  promptSelection: string;
-  setPromptSelection: (v: string) => void;
-  customPrompt: string;
-  setCustomPrompt: (v: string) => void;
-  folderId: string;
-  setFolderId: (v: string) => void;
-  folders: TranscribeFolder[];
-  hideChunking?: boolean;
-  fileKind: FileKind;
-  disabled?: boolean;
-};
-
-const FormFields = memo(function FormFields({
-  unit,
-  setUnit,
-  size,
-  setSize,
-  model,
-  setModel,
-  models,
-  presets,
-  promptSelection,
-  setPromptSelection,
-  customPrompt,
-  setCustomPrompt,
-  folderId,
-  setFolderId,
-  folders,
-  hideChunking,
-  fileKind,
-  disabled,
-}: FormFieldsProps) {
-  return (
-    <>
-      <div className="space-y-2">
-        <Label>Folder</Label>
-        <Select value={folderId} onValueChange={setFolderId} disabled={disabled}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Uncategorized" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">None (uncategorized)</SelectItem>
-            {folders.map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {f.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {!hideChunking && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>Chunk by</Label>
-            <Select value={unit} onValueChange={setUnit} disabled={disabled}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="seconds">Seconds</SelectItem>
-                <SelectItem value="mb">Megabytes</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="chunk-size">Chunk size</Label>
-            <Input
-              id="chunk-size"
-              type="number"
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-              disabled={disabled}
-            />
-          </div>
-        </div>
-      )}
-
-      {hideChunking && (
-        <p className="text-xs text-muted-foreground">
-          Each PDF page is processed separately with your selected vision model.
-        </p>
-      )}
-
-      <div className="space-y-2">
-        <Label>Model</Label>
-        <ModelSelect
-          models={models}
-          value={model}
-          onValueChange={setModel}
-          disabled={disabled}
-        />
-      </div>
-
-      <SystemPromptFields
-        presets={presets}
-        selection={promptSelection}
-        onSelectionChange={setPromptSelection}
-        customPrompt={customPrompt}
-        onCustomPromptChange={setCustomPrompt}
-        disabled={disabled}
-        hint={
-          fileKind === "pdf"
-            ? "Applied to every page during vision extraction."
-            : "Applied to every chunk during processing."
-        }
-      />
-    </>
-  );
-});

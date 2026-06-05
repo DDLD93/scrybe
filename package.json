@@ -16,7 +16,8 @@
     "db:drop": "drizzle-kit drop",
     "db:reset": "tsx --env-file=.env scripts/db-reset.ts",
     "db:seed-prompts": "tsx --env-file=.env scripts/seed-system-prompts.ts",
-    "db:migrate-prompts": "tsx --env-file=.env scripts/migrate-system-prompts.ts"
+    "db:migrate-prompts": "tsx --env-file=.env scripts/migrate-system-prompts.ts",
+    "db:migrate-settings": "tsx --env-file=.env scripts/migrate-system-settings.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1056.0",

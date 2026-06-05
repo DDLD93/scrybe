@@ -17,7 +17,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/transcribe/settings",
-    label: "Prompts",
+    label: "Settings",
     icon: IconSettings,
     isActive: (pathname: string) => pathname.startsWith("/transcribe/settings"),
   },

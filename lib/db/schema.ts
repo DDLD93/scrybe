@@ -94,13 +94,22 @@ export const transcribeChunks = pgTable(
   (t) => [unique().on(t.jobId, t.idx)],
 );
 
+export type LibraryViewMode = "grid" | "list";
+
 export const transcribeSettings = pgTable("transcribe_settings", {
   id: text("id").primaryKey().default("last_used"),
   chunkUnit: text("chunk_unit"),
   chunkSize: numeric("chunk_size", { precision: 12, scale: 4 }),
+  /** Default STT model for audio uploads. */
   model: text("model"),
+  /** Default vision model for PDF uploads. */
+  pdfModel: text("pdf_model"),
+  defaultView: text("default_view").$type<LibraryViewMode>(),
   systemPrompt: text("system_prompt"),
   lastSystemPromptId: uuid("last_system_prompt_id").references(() => systemPrompts.id, {
+    onDelete: "set null",
+  }),
+  lastPdfSystemPromptId: uuid("last_pdf_system_prompt_id").references(() => systemPrompts.id, {
     onDelete: "set null",
   }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

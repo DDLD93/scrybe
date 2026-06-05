@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   IconChevronRight,
   IconDotsVertical,
@@ -78,8 +78,28 @@ export function TranscriptsBrowser({
   onDeleteFolder,
 }: TranscriptsBrowserProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewModeLoaded, setViewModeLoaded] = useState(false);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [filters, setFilters] = useState<TranscriptFilters>(DEFAULT_FILTERS);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDefaultView() {
+      try {
+        const res = await fetch("/api/transcribe/settings");
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        const view = data.settings?.defaultView;
+        if (view === "grid" || view === "list") setViewMode(view);
+      } finally {
+        if (!cancelled) setViewModeLoaded(true);
+      }
+    }
+    void loadDefaultView();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [folderFormOpen, setFolderFormOpen] = useState(false);
   const [folderFormMode, setFolderFormMode] = useState<"create" | "rename">("create");
@@ -113,6 +133,13 @@ export function TranscriptsBrowser({
   function switchViewMode(mode: ViewMode) {
     setViewMode(mode);
     if (mode === "list") setActiveFolder(null);
+    if (viewModeLoaded) {
+      void fetch("/api/transcribe/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultView: mode }),
+      });
+    }
   }
 
   function openCreateFolder() {
