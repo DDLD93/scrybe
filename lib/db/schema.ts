@@ -11,12 +11,6 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export type FetchProgress = {
-  percent?: number;
-  speed?: string;
-  eta?: number;
-};
-
 export type TranscriptWord = {
   word: string;
   start: number;
@@ -77,9 +71,6 @@ export const transcribeJobs = pgTable("transcribe_jobs", {
   hasWordTimings: boolean("has_word_timings").notNull().default(false),
   language: text("language"),
   error: text("error"),
-  sourceUrl: text("source_url"),
-  fetchPreset: text("fetch_preset"),
-  fetchProgressJson: jsonb("fetch_progress_json").$type<FetchProgress>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

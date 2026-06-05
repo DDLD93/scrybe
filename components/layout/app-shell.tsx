@@ -2,12 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconMicrophone } from "@tabler/icons-react";
+import { IconBooks, IconSettings } from "@tabler/icons-react";
 import { TRANSCRIBE_JOB_PATH } from "@/lib/detect-file-kind";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
-const NAV_ITEMS = [{ href: "/transcribe", label: "Transcripts", icon: IconMicrophone }] as const;
+const NAV_ITEMS = [
+  {
+    href: "/transcribe",
+    label: "Library",
+    icon: IconBooks,
+    isActive: (pathname: string) =>
+      pathname.startsWith("/transcribe") && !pathname.startsWith("/transcribe/settings"),
+  },
+  {
+    href: "/transcribe/settings",
+    label: "Prompts",
+    icon: IconSettings,
+    isActive: (pathname: string) => pathname.startsWith("/transcribe/settings"),
+  },
+] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -25,8 +39,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <ThemeToggle />
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active = pathname.startsWith(href);
+          {NAV_ITEMS.map(({ href, label, icon: Icon, isActive }) => {
+            const active = isActive(pathname);
             return (
               <Link
                 key={href}
@@ -46,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="border-t border-border/40 p-4">
           <p className="text-[0.65rem] text-muted-foreground">
-            Audio transcription and PDF document extraction
+            Process audio, PDF, and media into editable text
           </p>
         </div>
       </aside>
@@ -62,14 +76,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <ThemeToggle />
         </header>
-        <main className={cn("flex-1", onJobPage ? "p-0 md:p-0" : "p-4 md:p-8")}>{children}</main>
+        <main className={cn("flex-1", onJobPage ? "p-0 md:p-0" : "p-4 md:p-6")}>{children}</main>
       </div>
 
-      {/* Mobile bottom nav — hidden on job player for more transcript space */}
+      {/* Mobile bottom nav — hidden on job player for more content space */}
       {!onJobPage && (
         <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border/40 bg-card/80 backdrop-blur-xl md:hidden">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active = pathname.startsWith(href);
+          {NAV_ITEMS.map(({ href, label, icon: Icon, isActive }) => {
+            const active = isActive(pathname);
             return (
               <Link
                 key={href}

@@ -133,8 +133,6 @@ export async function createTranscribeJob(data: {
   sourceKey?: string | null;
   folderId?: string | null;
   status?: string;
-  sourceUrl?: string | null;
-  fetchPreset?: string | null;
 }) {
   const db = getDb();
   const [job] = await db
@@ -153,8 +151,6 @@ export async function createTranscribeJob(data: {
       sourceKey: data.sourceKey ?? null,
       folderId: data.folderId ?? null,
       status: data.status ?? "pending",
-      sourceUrl: data.sourceUrl ?? null,
-      fetchPreset: data.fetchPreset ?? null,
     })
     .returning();
   return job;
@@ -276,5 +272,5 @@ export async function getActiveTranscribeJobs() {
   return db
     .select({ id: transcribeJobs.id })
     .from(transcribeJobs)
-    .where(inArray(transcribeJobs.status, ["fetching", "pending", "chunking", "processing"]));
+    .where(inArray(transcribeJobs.status, ["pending", "chunking", "processing"]));
 }

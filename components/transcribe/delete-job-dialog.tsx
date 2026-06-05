@@ -32,7 +32,7 @@ export function DeleteJobDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <IconTrash className="size-4 text-destructive" />
-            Delete transcription
+            Delete file
           </DialogTitle>
           <DialogDescription>
             This action cannot be undone.
@@ -47,7 +47,7 @@ export function DeleteJobDialog({
             <div className="flex gap-2.5 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5">
               <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
               <p className="text-xs/relaxed text-muted-foreground">
-                Permanently removes this job, its audio file, transcript, and all
+                Permanently removes this file, its source media, extracted text, and all
                 stored chunk data from the server.
               </p>
             </div>

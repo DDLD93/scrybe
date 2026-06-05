@@ -287,7 +287,7 @@ export function TranscriptPanel({
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground">No transcript available.</p>
+                <p className="text-muted-foreground">No content available.</p>
               )
             ) : words.length > 0 && segments.length > 0 ? (
               segments.map((s) => {
@@ -341,7 +341,7 @@ export function TranscriptPanel({
                 </div>
               ))
             ) : (
-              <p className="text-muted-foreground">No transcript available.</p>
+              <p className="text-muted-foreground">No content available.</p>
             )}
           </div>
         </div>

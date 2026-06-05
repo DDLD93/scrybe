@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "Scrybe",
-  description: "Audio transcriber with word-level sync and editable transcripts",
+  description: "Process audio, PDF, and media into editable text",
 };
 
 export default function RootLayout({

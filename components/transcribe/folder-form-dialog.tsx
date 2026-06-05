@@ -52,7 +52,7 @@ function FolderFormDialogContent({
         </DialogTitle>
         <DialogDescription>
           {mode === "create"
-            ? "Create a folder to organize your transcripts."
+            ? "Create a folder to organize your files."
             : "Update the folder name."}
         </DialogDescription>
       </DialogHeader>

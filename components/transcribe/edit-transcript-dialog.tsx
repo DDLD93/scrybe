@@ -63,7 +63,7 @@ function EditTranscriptDialogContent({
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <IconPencil className="size-4" />
-          Edit transcript
+          Edit file
         </DialogTitle>
         <DialogDescription>
           Rename the file or move it to another folder.

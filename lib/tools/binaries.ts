@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync } from "fs";
 import { execFileSync } from "child_process";
 
-/** Resolve a configured tool name to an absolute path (yt-dlp does not search PATH for --ffmpeg-location). */
+/** Resolve a configured tool name to an absolute path. */
 export function resolveToolPath(configured: string): string {
   if (existsSync(configured)) {
     try {

@@ -78,7 +78,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
 
         const txRes = await fetch(`/api/transcribe/jobs/${jobId}/transcript`);
         if (!txRes.ok) {
-          setError("Transcript not ready");
+          setError("Content not ready");
           return;
         }
         const tx = await txRes.json();
@@ -161,7 +161,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
         });
         const data = await res.json();
         if (!res.ok) {
-          toast.error(data.error ?? "Failed to save transcript");
+          toast.error(data.error ?? "Failed to save");
           return false;
         }
 
@@ -183,10 +183,10 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
           setLastSavedAt(new Date());
         }
 
-        if (!opts?.silent) toast.success("Transcript saved");
+        if (!opts?.silent) toast.success("Saved");
         return true;
       } catch {
-        toast.error("Failed to save transcript");
+        toast.error("Failed to save");
         return false;
       } finally {
         savingRef.current = false;

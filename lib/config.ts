@@ -1,5 +1,4 @@
 import { resolveToolPath } from "@/lib/tools/binaries";
-import { resolveYtdlpCookiesPath } from "@/lib/media-fetch/cookies";
 
 function env(key: string, fallback?: string): string | undefined {
   const v = process.env[key];
@@ -35,29 +34,9 @@ export const config = {
   /** Optional — when set, Whisper models use OpenAI's transcription API for word-level timestamps. */
   openaiApiKey: env("OPENAI_API_KEY"),
 
-  ytdlpPath: resolveToolPath(env("YTDLP_PATH", "yt-dlp")!),
   ffmpegPath: resolveToolPath(env("FFMPEG_PATH", "ffmpeg")!),
   ffprobePath: resolveToolPath(env("FFPROBE_PATH", "ffprobe")!),
 
-  /** Netscape-format cookies file path (must exist in container). */
-  ytdlpCookiesFile: resolveYtdlpCookiesPath(
-    env("YTDLP_COOKIES_FILE"),
-    env("YTDLP_COOKIES_CONTENT"),
-  ),
-  /** Optional proxy for datacenter IP blocks, e.g. socks5://127.0.0.1:1080 */
-  ytdlpProxy: env("YTDLP_PROXY"),
-  /** YouTube player clients — avoid ios (ignores cookies). */
-  ytdlpYouTubePlayerClient: env(
-    "YTDLP_YOUTUBE_PLAYER_CLIENT",
-    "web,mweb,android,tv_embedded",
-  )!,
-  /** JS runtimes for yt-dlp EJS challenge solving (comma-separated). */
-  ytdlpJsRuntimes: (env("YTDLP_JS_RUNTIMES", "deno,node") ?? "deno,node")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
-
-  transcribeFetchTimeoutSec: envInt("TRANSCRIBE_FETCH_TIMEOUT_SEC", 3600),
   transcribeUploadMaxBytes: envInt("TRANSCRIBE_UPLOAD_MAX_BYTES", 1024 * 1024 * 1024),
   workerConcurrency: envInt("WORKER_CONCURRENCY", 1),
 

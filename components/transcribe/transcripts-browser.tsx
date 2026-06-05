@@ -173,13 +173,13 @@ export function TranscriptsBrowser({
         body: JSON.stringify(data),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to update transcript");
-      toast.success("Transcript updated");
+      if (!res.ok) throw new Error(body.error ?? "Failed to update file");
+      toast.success("File updated");
       setJobToEdit(null);
       onRefresh();
       onRefreshFolders();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update transcript");
+      toast.error(err instanceof Error ? err.message : "Failed to update file");
     } finally {
       setJobSaving(false);
     }
@@ -237,7 +237,7 @@ export function TranscriptsBrowser({
             gridFolderJobs.length > 0 ? (
               <JobGrid jobs={gridFolderJobs} />
             ) : (
-              <EmptyFiltered message="No transcripts in this folder match your filters." />
+              <EmptyFiltered message="No files in this folder match your filters." />
             )
           ) : (
             <FolderGrid
@@ -268,8 +268,8 @@ export function TranscriptsBrowser({
           <EmptyFiltered
             message={
               jobs.length === 0
-                ? "No transcripts yet."
-                : "No transcripts match your filters."
+                ? "No files yet."
+                : "No files match your filters."
             }
           />
         )
@@ -332,7 +332,6 @@ function TranscriptToolbar({
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="processing">Processing</SelectItem>
               <SelectItem value="chunking">Chunking</SelectItem>
-              <SelectItem value="fetching">Fetching</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="failed">Failed</SelectItem>
               <SelectItem value="stopped">Stopped</SelectItem>
@@ -398,7 +397,7 @@ function Breadcrumb({
         onClick={onBack}
         className="transition-colors hover:text-foreground"
       >
-        Transcripts
+        Library
       </button>
       <IconChevronRight className="size-3.5 shrink-0" />
       <span className="font-medium text-foreground">{label}</span>
@@ -421,7 +420,7 @@ function FolderGrid({
 }) {
   if (folders.length === 0 && allFolders.length === 0) {
     return (
-      <EmptyFiltered message="No folders yet. Create one to organize your transcripts." />
+      <EmptyFiltered message="No folders yet. Create one to organize your files." />
     );
   }
 
@@ -484,7 +483,7 @@ function FolderCard({
         <div className="min-w-0 flex-1">
           <p className="font-medium text-foreground">{label}</p>
           <p className="text-xs text-muted-foreground">
-            {count} transcript{count !== 1 ? "s" : ""}
+            {count} file{count !== 1 ? "s" : ""}
           </p>
         </div>
         <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />

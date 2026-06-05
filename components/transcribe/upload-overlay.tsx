@@ -34,7 +34,7 @@ export function UploadOverlay({ open, filename, progress }: UploadOverlayProps) 
               <div className="absolute inset-y-0 w-1/3 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-md bg-primary" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Writing to bucket and starting transcription job…
+              Writing to bucket and starting processing job…
             </p>
           </div>
         ) : (

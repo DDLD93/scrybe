@@ -1,6 +1,6 @@
 # Scrybe — High-Level System Design
 
-> **Note:** The standalone Media Downloader (`/download`, `download_jobs`) has been removed. URL import uses `lib/media-fetch` and `POST /api/transcribe/jobs/from-url`. Download-specific sections below are historical.
+> **Note:** The standalone Media Downloader (`/download`, `download_jobs`) and URL import (`lib/media-fetch`, `POST /api/transcribe/jobs/from-url`) have been removed. Download-specific sections below are historical.
 
 This document is the **implementation blueprint** for coding agents building Scrybe.
 It defines architecture, module boundaries, API contracts, data models, and UI behavior.

@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { IconArrowLeft, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -134,22 +133,15 @@ export default function SystemPromptsSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <div className="flex items-center justify-between gap-4">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <Link
-            href="/transcribe"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <IconArrowLeft className="size-3.5" />
-            Back to transcripts
-          </Link>
           <h1 className="text-xl font-semibold tracking-tight">System prompts</h1>
           <p className="text-sm text-muted-foreground">
-            Presets for audio transcription and PDF page extraction.
+            Presets that guide audio and PDF processing when creating new files.
           </p>
         </div>
-        <Button onClick={openCreate} className="gap-1.5">
+        <Button onClick={openCreate} className="gap-1.5 shrink-0">
           <IconPlus className="size-4" />
           New prompt
         </Button>
@@ -160,7 +152,7 @@ export default function SystemPromptsSettingsPage() {
           <Spinner className="size-6" />
         </div>
       ) : (
-        <div className="rounded-lg border border-border/50">
+        <div className="glass-card overflow-hidden rounded-xl ring-1 ring-border/50">
           <Table>
             <TableHeader>
               <TableRow>
@@ -173,7 +165,7 @@ export default function SystemPromptsSettingsPage() {
             <TableBody>
               {prompts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
                     No prompts yet. Create one or run npm run db:seed-prompts.
                   </TableCell>
                 </TableRow>

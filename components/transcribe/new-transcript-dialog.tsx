@@ -1,11 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import {
-  IconCloudUpload,
-  IconLink,
-  IconUpload,
-} from "@tabler/icons-react";
+import { IconCloudUpload } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +27,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadOverlay } from "@/components/transcribe/upload-overlay";
 import { detectFileKind, type FileKind } from "@/lib/detect-file-kind";
 import { uploadTranscribeFile, type UploadProgress } from "@/lib/upload-with-progress";
@@ -47,8 +42,6 @@ type NewTranscriptDialogProps = {
   onSuccess: () => void;
   folders?: TranscribeFolder[];
 };
-
-const URL_PRESETS = ["mp3", "aac", "best"] as const;
 
 export function NewTranscriptDialog({
   open,
@@ -68,10 +61,7 @@ export function NewTranscriptDialog({
   const [promptSelection, setPromptSelection] = useState("__none__");
   const [customPrompt, setCustomPrompt] = useState("");
   const [folderId, setFolderId] = useState<string>("__none__");
-  const [url, setUrl] = useState("");
-  const [preset, setPreset] = useState<string>("mp3");
   const [submitting, setSubmitting] = useState(false);
-  const [urlPhase, setUrlPhase] = useState<"idle" | "fetching">("idle");
   const [uploadOverlay, setUploadOverlay] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     phase: "uploading",
@@ -168,7 +158,7 @@ export function NewTranscriptDialog({
         setUploadProgress,
       );
       toast.success(
-        `${fileKind === "pdf" ? "Document" : "Transcription"} started — job ${data.jobId.slice(0, 8)}…`,
+        `Processing started — job ${data.jobId.slice(0, 8)}…`,
       );
       setFile(null);
       onOpenChange(false);
@@ -178,55 +168,6 @@ export function NewTranscriptDialog({
     } finally {
       setSubmitting(false);
       setUploadOverlay(false);
-    }
-  }
-
-  async function submitFromUrl(e: React.FormEvent) {
-    e.preventDefault();
-    if (!url || submitting) return;
-
-    setSubmitting(true);
-    setUrlPhase("fetching");
-
-    const promptPayload = buildPromptPayload(promptSelection, customPrompt);
-
-    try {
-      const res = await fetch("/api/transcribe/jobs/from-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url,
-          preset,
-          model,
-          size,
-          unit,
-          ...promptPayload,
-          folderId: folderId === "__none__" ? undefined : folderId,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to start");
-
-      const jobId = data.jobId as string;
-      for (let i = 0; i < 300; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const st = await fetch(`/api/transcribe/jobs/${jobId}`);
-        const payload = await st.json();
-        const status = payload.job?.status;
-        if (status && status !== "fetching") {
-          if (status === "failed") throw new Error(payload.job?.error ?? "Fetch failed");
-          break;
-        }
-      }
-
-      toast.success(`Transcription started — job ${jobId.slice(0, 8)}…`);
-      onOpenChange(false);
-      onSuccess();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setSubmitting(false);
-      setUrlPhase("idle");
     }
   }
 
@@ -249,165 +190,81 @@ export function NewTranscriptDialog({
       >
         <DialogContent className="sm:max-w-lg" showCloseButton={!busy}>
           <DialogHeader>
-            <DialogTitle>New Transcript</DialogTitle>
-            <DialogDescription>
-              Upload audio or PDF, or fetch audio from a URL.
-            </DialogDescription>
+            <DialogTitle>New file</DialogTitle>
+            <DialogDescription>Upload audio or PDF, or import from a media URL.</DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="upload" className="gap-4">
-            <TabsList className="w-full">
-              <TabsTrigger value="upload" className="flex-1 gap-1.5" disabled={busy}>
-                <IconUpload className="size-3.5" />
-                Upload
-              </TabsTrigger>
-              <TabsTrigger value="url" className="flex-1 gap-1.5" disabled={busy}>
-                <IconLink className="size-3.5" />
-                From URL
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="upload">
-              <form onSubmit={submitUpload} className="space-y-4">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOver(true);
-                  }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={onDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={cn(
-                    "flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors",
-                    dragOver
-                      ? "border-primary bg-primary/5"
-                      : "border-border/60 hover:border-primary/50 hover:bg-muted/30",
-                  )}
-                >
-                  <IconCloudUpload className="size-8 text-muted-foreground" />
-                  {file ? (
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-foreground">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(file.size / 1024 / 1024).toFixed(1)} MB · {isPdf ? "PDF" : "Audio"}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="text-center">
-                      <p className="text-sm text-foreground">Drop audio or PDF here</p>
-                      <p className="text-xs text-muted-foreground">or click to browse</p>
-                    </div>
-                  )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="audio/*,application/pdf"
-                    className="hidden"
-                    onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
-                  />
+          <form onSubmit={submitUpload} className="space-y-4">
+            <div
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={cn(
+                "flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors",
+                dragOver
+                  ? "border-primary bg-primary/5"
+                  : "border-border/60 hover:border-primary/50 hover:bg-muted/30",
+              )}
+            >
+              <IconCloudUpload className="size-8 text-muted-foreground" />
+              {file ? (
+                <div className="text-center">
+                  <p className="text-sm font-medium text-foreground">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(file.size / 1024 / 1024).toFixed(1)} MB · {isPdf ? "PDF" : "Audio"}
+                  </p>
                 </div>
-
-                <FormFields
-                  unit={unit}
-                  setUnit={setUnit}
-                  size={size}
-                  setSize={setSize}
-                  model={model}
-                  setModel={setModel}
-                  models={models}
-                  presets={presets}
-                  promptSelection={promptSelection}
-                  setPromptSelection={setPromptSelection}
-                  customPrompt={customPrompt}
-                  setCustomPrompt={setCustomPrompt}
-                  folderId={folderId}
-                  setFolderId={setFolderId}
-                  folders={folders}
-                  hideChunking={isPdf}
-                  fileKind={fileKind}
-                  disabled={busy}
-                />
-
-                <Button type="submit" disabled={!file || busy} className="w-full" size="lg">
-                  {submitting ? (
-                    <Spinner className="size-4" />
-                  ) : isPdf ? (
-                    "Start document extraction"
-                  ) : (
-                    "Start transcription"
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="url">
-              <form onSubmit={submitFromUrl} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="url">Media URL</Label>
-                  <Input
-                    id="url"
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://..."
-                    disabled={busy}
-                  />
+              ) : (
+                <div className="text-center">
+                  <p className="text-sm text-foreground">Drop audio or PDF here</p>
+                  <p className="text-xs text-muted-foreground">or click to browse</p>
                 </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*,application/pdf"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
 
-                <div className="space-y-2">
-                  <Label>Download format</Label>
-                  <div className="flex gap-2">
-                    {URL_PRESETS.map((p) => (
-                      <Button
-                        key={p}
-                        type="button"
-                        variant={preset === p ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setPreset(p)}
-                        disabled={busy}
-                      >
-                        {p}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+            <FormFields
+              unit={unit}
+              setUnit={setUnit}
+              size={size}
+              setSize={setSize}
+              model={model}
+              setModel={setModel}
+              models={models}
+              presets={presets}
+              promptSelection={promptSelection}
+              setPromptSelection={setPromptSelection}
+              customPrompt={customPrompt}
+              setCustomPrompt={setCustomPrompt}
+              folderId={folderId}
+              setFolderId={setFolderId}
+              folders={folders}
+              hideChunking={isPdf}
+              fileKind={fileKind}
+              disabled={busy}
+            />
 
-                <FormFields
-                  unit={unit}
-                  setUnit={setUnit}
-                  size={size}
-                  setSize={setSize}
-                  model={model}
-                  setModel={setModel}
-                  models={models}
-                  presets={presets}
-                  promptSelection={promptSelection}
-                  setPromptSelection={setPromptSelection}
-                  customPrompt={customPrompt}
-                  setCustomPrompt={setCustomPrompt}
-                  folderId={folderId}
-                  setFolderId={setFolderId}
-                  folders={folders}
-                  hideChunking={false}
-                  fileKind="audio"
-                  disabled={busy}
-                />
-
-                <Button type="submit" disabled={!url || busy} className="w-full" size="lg">
-                  {urlPhase === "fetching" && (
-                    <>
-                      <Spinner className="size-4" />
-                      Fetching media…
-                    </>
-                  )}
-                  {urlPhase === "idle" && "Fetch & transcribe"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+            <Button type="submit" disabled={!file || busy} className="w-full" size="lg">
+              {submitting ? (
+                <Spinner className="size-4" />
+              ) : (
+                "Start processing"
+              )}
+            </Button>
+          </form>
         </DialogContent>
       </Dialog>
     </>
@@ -527,7 +384,7 @@ const FormFields = memo(function FormFields({
         hint={
           fileKind === "pdf"
             ? "Applied to every page during vision extraction."
-            : "Applied to every chunk during transcription."
+            : "Applied to every chunk during processing."
         }
       />
     </>

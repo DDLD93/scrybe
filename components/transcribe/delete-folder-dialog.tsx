@@ -52,7 +52,7 @@ export function DeleteFolderDialog({
               <div className="flex gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
                 <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
                 <p className="text-xs/relaxed text-muted-foreground">
-                  This folder contains {folder.jobCount} transcript
+                  This folder contains {folder.jobCount} file
                   {folder.jobCount !== 1 ? "s" : ""}. Move or delete them first.
                 </p>
               </div>
