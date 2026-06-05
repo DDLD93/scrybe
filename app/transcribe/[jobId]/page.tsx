@@ -6,6 +6,10 @@ import { IconArrowLeft } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { AudioPlayerCompact } from "@/components/transcribe/audio-player-compact";
 import {
+  JobDetailsPanel,
+  type JobDetailsData,
+} from "@/components/transcribe/job-details-panel";
+import {
   TranscriptPanel,
   type TranscriptSegment,
   type TranscriptWord,
@@ -43,6 +47,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
 
   const [filename, setFilename] = useState("");
   const [jobKind, setJobKind] = useState("audio");
+  const [jobDetails, setJobDetails] = useState<JobDetailsData | null>(null);
   const [words, setWords] = useState<TranscriptWord[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [editMode, setEditMode] = useState(false);
@@ -71,9 +76,27 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
       try {
         const jobRes = await fetch(`/api/transcribe/jobs/${jobId}`);
         const jobData = await jobRes.json();
+        let transcriptLanguage: string | null = null;
+        let transcriptDuration: number | null = null;
+
         if (jobData.job) {
-          setFilename(jobData.job.filename);
-          setJobKind(jobData.job.jobKind ?? "audio");
+          const job = jobData.job;
+          setFilename(job.filename);
+          setJobKind(job.jobKind ?? "audio");
+          setJobDetails({
+            createdAt:
+              typeof job.createdAt === "string"
+                ? job.createdAt
+                : job.createdAt?.toISOString?.() ?? null,
+            folderName: jobData.folderName ?? null,
+            jobKind: job.jobKind ?? "audio",
+            model: job.model ?? null,
+            hasWordTimings: job.hasWordTimings ?? false,
+            durationSec: job.durationSec ?? null,
+            fileSize: job.fileSize ?? null,
+            language: job.language ?? null,
+            contentType: job.contentType ?? null,
+          });
         }
 
         const txRes = await fetch(`/api/transcribe/jobs/${jobId}/transcript`);
@@ -82,8 +105,20 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
           return;
         }
         const tx = await txRes.json();
+        transcriptLanguage = tx.language ?? null;
+        transcriptDuration =
+          typeof tx.duration === "number" ? tx.duration : null;
         setWords(tx.words ?? []);
         setSegments(tx.segments ?? []);
+        setJobDetails((prev) =>
+          prev
+            ? {
+                ...prev,
+                language: prev.language ?? transcriptLanguage,
+                transcriptDuration,
+              }
+            : prev,
+        );
       } finally {
         setLoading(false);
       }
@@ -322,6 +357,8 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
           </div>
         </div>
       </header>
+
+      <JobDetailsPanel job={jobDetails} loading={loading} />
 
       {error && (
         <Card className="mt-3 shrink-0 border-destructive/30 bg-destructive/5">

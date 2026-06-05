@@ -19,7 +19,6 @@ import { EditTranscriptDialog } from "@/components/transcribe/edit-transcript-di
 import { FolderFormDialog } from "@/components/transcribe/folder-form-dialog";
 import { TranscriptsTable } from "@/components/transcribe/transcripts-table";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -47,6 +46,7 @@ import {
   UNCATEGORIZED_FOLDER,
   type TranscriptFilters,
 } from "@/lib/transcribe/folders";
+import { formatCreatedDate } from "@/lib/format-relative-time";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "grid" | "list";
@@ -576,20 +576,22 @@ function JobGrid({ jobs }: { jobs: TranscribeJob[] }) {
               <p className="truncate font-mono text-xs font-medium" title={job.filename}>
                 {job.filename}
               </p>
+              <p className="mt-1 truncate text-[0.65rem] text-muted-foreground">
+                {job.folderName ?? "Uncategorized"}
+              </p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <StatusBadge status={job.status} />
-                {job.hasWordTimings && (
-                  <Badge variant="secondary" className="text-[0.65rem] font-normal">
-                    Word timing
-                  </Badge>
+                {job.createdAt && (
+                  <span className="text-[0.65rem] tabular-nums text-muted-foreground">
+                    {formatCreatedDate(job.createdAt)}
+                  </span>
                 )}
               </div>
             </div>
 
             <div className="space-y-1.5">
               <Progress value={progressPct} className="h-1.5" />
-              <div className="flex items-center justify-between text-[0.65rem] text-muted-foreground">
-                <span className="font-mono">{job.model.split("/").pop()}</span>
+              <div className="flex items-center justify-end text-[0.65rem] text-muted-foreground">
                 <span className="tabular-nums">
                   {job.totalChunks > 0
                     ? `${job.completedChunks}/${job.totalChunks}`

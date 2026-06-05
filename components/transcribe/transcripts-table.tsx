@@ -7,7 +7,6 @@ import {
   IconDotsVertical,
   IconExternalLink,
   IconFileText,
-  IconHighlight,
   IconPencil,
   IconPlayerPlay,
   IconPlayerStop,
@@ -41,6 +40,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { TranscribeJob } from "@/hooks/use-transcribe-jobs";
+import { formatCreatedDate, formatCreatedDateTime } from "@/lib/format-relative-time";
 import { cn } from "@/lib/utils";
 
 type TranscriptsTableProps = {
@@ -109,12 +109,11 @@ export function TranscriptsTable({ jobs, onRefresh, onEditJob }: TranscriptsTabl
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border/50">
-            <TableHead className="w-[28%]">File</TableHead>
+            <TableHead className="w-[30%]">File</TableHead>
             <TableHead className="w-[12%]">Folder</TableHead>
-            <TableHead className="w-24">Word timing</TableHead>
-            <TableHead>Model</TableHead>
+            <TableHead className="w-[14%]">Created</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="w-[20%]">Progress</TableHead>
+            <TableHead className="w-[18%]">Progress</TableHead>
             <TableHead className="w-12 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -164,30 +163,19 @@ export function TranscriptsTable({ jobs, onRefresh, onEditJob }: TranscriptsTabl
                 <TableCell className="text-xs text-muted-foreground">
                   {job.folderName ?? "—"}
                 </TableCell>
-                <TableCell>
-                  {job.hasWordTimings ? (
+                <TableCell className="text-xs text-muted-foreground">
+                  {job.createdAt ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge
-                          variant="secondary"
-                          className="gap-1 font-normal text-primary"
-                        >
-                          <IconHighlight className="size-3" />
-                          Yes
-                        </Badge>
+                        <span className="tabular-nums">{formatCreatedDate(job.createdAt)}</span>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
-                        Word highlight during playback
+                        {formatCreatedDateTime(job.createdAt)}
                       </TooltipContent>
                     </Tooltip>
                   ) : (
-                    <span className="text-[0.65rem] text-muted-foreground">—</span>
+                    "—"
                   )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className="font-mono text-[0.65rem] font-normal">
-                    {job.model.split("/").pop()}
-                  </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">

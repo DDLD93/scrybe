@@ -22,7 +22,12 @@ export async function GET(req: NextRequest, { params }: Params) {
       if (!job) return error("Not found", 404);
       assertJobAccess(user, job);
       const chunks = await getTranscribeChunks(id);
-      return json({ job, chunks });
+      let folderName: string | null = null;
+      if (job.folderId) {
+        const folder = await getTranscribeFolder(job.folderId);
+        folderName = folder?.name ?? null;
+      }
+      return json({ job, chunks, folderName });
     } catch (err) {
       return authErrorResponse(err);
     }
