@@ -52,7 +52,8 @@ async function processPdfChunks(
   if (job.totalChunks === 0) {
     await updateTranscribeJob(jobId, { status: "chunking", error: null });
     const { splitPdfToPages } = await import("@/lib/transcribe/pdf-pages");
-    const segments = await splitPdfToPages(sourcePath, workDir);
+    const maxPages = job.processLimitPages ?? undefined;
+    const segments = await splitPdfToPages(sourcePath, workDir, maxPages);
 
     for (const seg of segments) {
       if (await isStopped(jobId)) return;
@@ -109,19 +110,32 @@ async function processAudioChunks(
   if (job.totalChunks === 0) {
     await updateTranscribeJob(jobId, { status: "chunking", error: null });
 
+    const maxDurationSec = job.processLimitSec ? Number(job.processLimitSec) : undefined;
+
     const playbackPath = join(workDir, "playback.m4a");
-    await normalizeForPlayback(sourcePath, playbackPath);
+    await normalizeForPlayback(sourcePath, playbackPath, maxDurationSec);
     const playbackKey = `jobs/${jobId}/playback/audio.m4a`;
     await putFile(playbackKey, playbackPath, "audio/mp4");
-    const { duration } = await probe(sourcePath);
+    const { duration: fullDuration } = await probe(sourcePath);
+    const processedDuration =
+      maxDurationSec !== undefined
+        ? Math.min(fullDuration, maxDurationSec)
+        : fullDuration;
     await updateTranscribeJob(jobId, {
       playbackKey,
       playbackContentType: "audio/mp4",
-      durationSec: String(duration),
+      durationSec: String(processedDuration),
     });
 
     const chunkSize = Number(job.chunkSize);
-    const segments = await split(sourcePath, workDir, job.chunkUnit, chunkSize, ext);
+    const segments = await split(
+      sourcePath,
+      workDir,
+      job.chunkUnit,
+      chunkSize,
+      ext,
+      maxDurationSec,
+    );
 
     for (const seg of segments) {
       if (await isStopped(jobId)) return;

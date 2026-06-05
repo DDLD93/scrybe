@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { IconCloudUpload } from "@tabler/icons-react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { AudioFilePreview } from "@/components/transcribe/audio-file-preview";
+import { FileKindTabs } from "@/components/transcribe/file-kind-tabs";
+import { PdfFilePreview } from "@/components/transcribe/pdf-file-preview";
+import { TranscribeFileDropZone } from "@/components/transcribe/transcribe-file-drop-zone";
+import { UploadOverlay } from "@/components/transcribe/upload-overlay";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,10 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { UploadOverlay } from "@/components/transcribe/upload-overlay";
-import { detectFileKind } from "@/lib/detect-file-kind";
+import { useTranscribeFile } from "@/hooks/use-transcribe-file";
 import { uploadTranscribeFile, type UploadProgress } from "@/lib/upload-with-progress";
-import { cn } from "@/lib/utils";
 
 import type { TranscribeFolder } from "@/hooks/use-transcribe-folders";
 
@@ -40,9 +42,25 @@ export function NewTranscriptDialog({
   onSuccess,
   folders = [],
 }: NewTranscriptDialogProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [dragOver, setDragOver] = useState(false);
+  const {
+    selectedKind,
+    setKind,
+    file,
+    setFile,
+    metadata,
+    status,
+    displayFilename,
+    setDisplayFilename,
+    extensionWarning,
+    processLimit,
+    setProcessLimit,
+    processLimitMax,
+    blockers,
+    canSubmit,
+    uploadParams,
+    reset,
+  } = useTranscribeFile();
+
   const [folderId, setFolderId] = useState<string>("__none__");
   const [submitting, setSubmitting] = useState(false);
   const [uploadOverlay, setUploadOverlay] = useState(false);
@@ -51,20 +69,9 @@ export function NewTranscriptDialog({
     percent: 0,
   });
 
-  const handleFile = useCallback((f: File | null) => {
-    setFile(f);
-  }, []);
-
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(false);
-    const dropped = e.dataTransfer.files[0];
-    if (dropped) handleFile(dropped);
-  }
-
   async function submitUpload(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || submitting) return;
+    if (!file || !uploadParams || !canSubmit || submitting) return;
 
     setSubmitting(true);
     setUploadOverlay(true);
@@ -74,12 +81,14 @@ export function NewTranscriptDialog({
       const data = await uploadTranscribeFile(
         file,
         {
+          ...uploadParams,
           folderId: folderId === "__none__" ? undefined : folderId,
         },
         setUploadProgress,
       );
       toast.success(`Processing started — job ${data.jobId.slice(0, 8)}…`);
-      setFile(null);
+      reset();
+      setFolderId("__none__");
       onOpenChange(false);
       onSuccess();
     } catch (err) {
@@ -91,71 +100,81 @@ export function NewTranscriptDialog({
   }
 
   const busy = submitting || uploadOverlay;
-  const isPdf = file ? detectFileKind(file) === "pdf" : false;
+  const loading = status === "loading";
 
   return (
     <>
       <UploadOverlay
         open={uploadOverlay}
-        filename={file?.name ?? ""}
+        filename={uploadParams?.filename ?? file?.name ?? ""}
         progress={uploadProgress}
       />
 
       <Dialog
         open={open}
         onOpenChange={(next) => {
-          if (!busy) onOpenChange(next);
+          if (busy) return;
+          if (!next) reset();
+          onOpenChange(next);
         }}
       >
         <DialogContent className="sm:max-w-lg" showCloseButton={!busy}>
           <DialogHeader>
             <DialogTitle>New file</DialogTitle>
             <DialogDescription>
-              Upload audio or PDF. Processing uses your defaults from Settings.
+              Choose audio or PDF, review metadata, then start processing with your Settings defaults.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={submitUpload} className="space-y-4">
-            <div
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={onDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={cn(
-                "flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors",
-                dragOver
-                  ? "border-primary bg-primary/5"
-                  : "border-border/60 hover:border-primary/50 hover:bg-muted/30",
-              )}
-            >
-              <IconCloudUpload className="size-8 text-muted-foreground" />
-              {file ? (
-                <div className="text-center">
-                  <p className="text-sm font-medium text-foreground">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(file.size / 1024 / 1024).toFixed(1)} MB · {isPdf ? "PDF" : "Audio"}
-                  </p>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <p className="text-sm text-foreground">Drop audio or PDF here</p>
-                  <p className="text-xs text-muted-foreground">or click to browse</p>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*,application/pdf"
-                className="hidden"
-                onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+            <FileKindTabs
+              value={selectedKind}
+              onChange={setKind}
+              disabled={busy}
+            />
+
+            <TranscribeFileDropZone
+              kind={selectedKind}
+              file={file}
+              disabled={busy}
+              onFile={setFile}
+            />
+
+            {file && selectedKind === "audio" && (
+              <AudioFilePreview
+                metadata={metadata?.kind === "audio" ? metadata : null}
+                loading={loading}
+                displayFilename={displayFilename}
+                extensionWarning={extensionWarning}
+                processLimit={processLimit}
+                processLimitMax={processLimitMax}
+                disabled={busy}
+                onFilenameChange={setDisplayFilename}
+                onProcessLimitChange={setProcessLimit}
               />
-            </div>
+            )}
+
+            {file && selectedKind === "pdf" && (
+              <PdfFilePreview
+                metadata={metadata?.kind === "pdf" ? metadata : null}
+                loading={loading}
+                displayFilename={displayFilename}
+                extensionWarning={extensionWarning}
+                processLimit={processLimit}
+                processLimitMax={processLimitMax}
+                disabled={busy}
+                onFilenameChange={setDisplayFilename}
+                onProcessLimitChange={setProcessLimit}
+              />
+            )}
+
+            {blockers.length > 0 && (
+              <ul className="space-y-1 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {blockers.map((msg) => (
+                  <li key={msg}>{msg}</li>
+                ))}
+              </ul>
+            )}
 
             <div className="space-y-2">
               <Label>Folder</Label>
@@ -174,7 +193,7 @@ export function NewTranscriptDialog({
               </Select>
             </div>
 
-            <Button type="submit" disabled={!file || busy} className="w-full" size="lg">
+            <Button type="submit" disabled={!canSubmit || busy} className="w-full" size="lg">
               {submitting ? <Spinner className="size-4" /> : "Start processing"}
             </Button>
           </form>

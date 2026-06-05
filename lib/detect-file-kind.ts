@@ -1,10 +1,11 @@
 export type FileKind = "audio" | "pdf";
 
+export function isPdfFile(file: File): boolean {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
 export function detectFileKind(file: File): FileKind {
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-    return "pdf";
-  }
-  return "audio";
+  return isPdfFile(file) ? "pdf" : "audio";
 }
 
 export const TRANSCRIBE_JOB_PATH =

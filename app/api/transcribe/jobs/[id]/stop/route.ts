@@ -1,18 +1,25 @@
-import { getTranscribeJob, updateTranscribeJob } from "@/lib/db/queries";
-import { enqueue, requestStop } from "@/lib/worker/queue";
-import { accepted, error, handleRoute } from "@/lib/api";
+import { updateTranscribeJob } from "@/lib/db/queries";
+import { requestStop } from "@/lib/worker/queue";
+import { accepted, handleRoute } from "@/lib/api";
+import { authErrorResponse } from "@/lib/auth/require-auth";
+import { loadJobForUser } from "@/lib/auth/job-guard";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function POST(_req: Request, { params }: Params) {
+export async function POST(req: Request, { params }: Params) {
   return handleRoute(async () => {
-    const { id } = await params;
-    const job = await getTranscribeJob(id);
-    if (!job) return error("Not found", 404);
-    if (["pending", "chunking", "processing"].includes(job.status)) {
-      await updateTranscribeJob(id, { status: "stopped" });
-      requestStop({ type: "transcribe", jobId: id });
+    try {
+      const { id } = await params;
+      const access = await loadJobForUser(req, id);
+      if (!access.ok) return access.response;
+      const { job } = access;
+      if (["pending", "chunking", "processing"].includes(job.status)) {
+        await updateTranscribeJob(id, { status: "stopped" });
+        requestStop({ type: "transcribe", jobId: id });
+      }
+      return accepted({ jobId: id, stopped: true });
+    } catch (err) {
+      return authErrorResponse(err);
     }
-    return accepted({ jobId: id, stopped: true });
   });
 }

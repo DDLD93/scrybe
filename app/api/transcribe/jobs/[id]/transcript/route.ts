@@ -1,6 +1,8 @@
 import { getTranscribeChunks, getTranscribeJob } from "@/lib/db/queries";
 import { getBuffer, putBuffer } from "@/lib/storage/s3";
 import { error, handleRoute, json } from "@/lib/api";
+import { authErrorResponse } from "@/lib/auth/require-auth";
+import { loadJobForUser } from "@/lib/auth/job-guard";
 import {
   applySegmentEdits,
   compileFromChunks,
@@ -36,31 +38,40 @@ async function loadTranscript(jobId: string, transcriptKey: string | null): Prom
   return compileFromChunks(chunks);
 }
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: Request, { params }: Params) {
   return handleRoute(async () => {
-    const { id } = await params;
-    const job = await getTranscribeJob(id);
-    if (!job || job.status !== "completed") return error("Transcript not ready", 404);
+    try {
+      const { id } = await params;
+      const access = await loadJobForUser(req, id);
+      if (!access.ok) return access.response;
+      const { job } = access;
+      if (job.status !== "completed") return error("Transcript not ready", 404);
 
-    const t = await loadTranscript(id, job.transcriptKey);
-    if (!t) return error("Transcript not ready", 404);
+      const t = await loadTranscript(id, job.transcriptKey);
+      if (!t) return error("Transcript not ready", 404);
 
-    return json({
-      jobId: id,
-      language: t.language,
-      duration: t.duration,
-      words: t.words,
-      segments: t.segments,
-    });
+      return json({
+        jobId: id,
+        language: t.language,
+        duration: t.duration,
+        words: t.words,
+        segments: t.segments,
+      });
+    } catch (err) {
+      return authErrorResponse(err);
+    }
   });
 }
 
 export async function PATCH(req: Request, { params }: Params) {
   return handleRoute(async () => {
-    const { id } = await params;
-    const job = await getTranscribeJob(id);
-    if (!job || job.status !== "completed") return error("Transcript not ready", 404);
-    if (!job.transcriptKey) return error("Transcript not ready", 404);
+    try {
+      const { id } = await params;
+      const access = await loadJobForUser(req, id);
+      if (!access.ok) return access.response;
+      const { job } = access;
+      if (job.status !== "completed") return error("Transcript not ready", 404);
+      if (!job.transcriptKey) return error("Transcript not ready", 404);
 
     const existing = await loadTranscript(id, job.transcriptKey);
     if (!existing) return error("Transcript not ready", 404);
@@ -95,5 +106,8 @@ export async function PATCH(req: Request, { params }: Params) {
       words: compiled.words,
       segments: compiled.segments,
     });
+    } catch (err) {
+      return authErrorResponse(err);
+    }
   });
 }

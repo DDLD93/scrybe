@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { AppShell } from "@/components/layout/app-shell";
+import { AppLayout } from "@/components/layout/app-layout";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -23,7 +23,7 @@ export default function RootLayout({
       <body className="min-h-full font-sans">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <TooltipProvider>
-            <AppShell>{children}</AppShell>
+            <AppLayout>{children}</AppLayout>
             <Toaster position="bottom-right" richColors />
           </TooltipProvider>
         </ThemeProvider>

@@ -42,4 +42,16 @@ export const config = {
 
   pdfRenderDpi: envInt("PDF_RENDER_DPI", 150),
   pdfMaxPages: envInt("PDF_MAX_PAGES", 500),
+
+  sessionSecret: env("SESSION_SECRET", "dev-session-secret-change-me")!,
+  appUrl: env("APP_URL", "http://127.0.0.1:3000")!,
+
+  smtp: {
+    host: env("SMTP_HOST"),
+    port: envInt("SMTP_PORT", 587),
+    user: env("SMTP_USER"),
+    pass: env("SMTP_PASS"),
+    from: env("SMTP_FROM", "noreply@scrybe.local"),
+    secure: env("SMTP_SECURE") === "true",
+  },
 } as const;

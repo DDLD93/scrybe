@@ -1,5 +1,7 @@
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/lib/db";
+import type { FileScope } from "@/lib/auth/file-access";
+import { folderOwnerCondition, jobOwnerCondition } from "@/lib/auth/file-access";
 import {
   type LibraryViewMode,
   transcribeChunks,
@@ -8,9 +10,10 @@ import {
   transcribeSettings,
 } from "@/lib/db/schema";
 
-export async function listTranscribeJobs(limit = 200) {
+export async function listTranscribeJobs(limit = 200, scope?: FileScope) {
   const db = getDb();
-  return db
+  const ownerCond = scope ? jobOwnerCondition(scope) : undefined;
+  const query = db
     .select({
       job: transcribeJobs,
       folderName: transcribeFolders.name,
@@ -19,32 +22,54 @@ export async function listTranscribeJobs(limit = 200) {
     .leftJoin(transcribeFolders, eq(transcribeJobs.folderId, transcribeFolders.id))
     .orderBy(desc(transcribeJobs.createdAt))
     .limit(limit);
+
+  if (ownerCond) {
+    return query.where(ownerCond);
+  }
+  return query;
 }
 
-export async function countJobsInFolder(folderId: string) {
+export async function countJobsInFolder(folderId: string, scope?: FileScope) {
   const db = getDb();
+  const conditions: SQL[] = [eq(transcribeJobs.folderId, folderId)];
+  const ownerCond = scope ? jobOwnerCondition(scope) : undefined;
+  if (ownerCond) conditions.push(ownerCond);
+
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(transcribeJobs)
-    .where(eq(transcribeJobs.folderId, folderId));
+    .where(and(...conditions));
   return row?.count ?? 0;
 }
 
-export async function listTranscribeFolders() {
+export async function listTranscribeFolders(scope?: FileScope) {
   const db = getDb();
-  const rows = await db
+  const ownerCond = scope ? folderOwnerCondition(scope) : undefined;
+
+  let folderQuery = db
     .select({
       id: transcribeFolders.id,
       name: transcribeFolders.name,
       createdAt: transcribeFolders.createdAt,
       updatedAt: transcribeFolders.updatedAt,
+      createdByUserId: transcribeFolders.createdByUserId,
       jobCount: sql<number>`count(${transcribeJobs.id})::int`,
     })
     .from(transcribeFolders)
-    .leftJoin(transcribeJobs, eq(transcribeJobs.folderId, transcribeFolders.id))
+    .leftJoin(
+      transcribeJobs,
+      ownerCond
+        ? and(eq(transcribeJobs.folderId, transcribeFolders.id), ownerCond)
+        : eq(transcribeJobs.folderId, transcribeFolders.id),
+    )
     .groupBy(transcribeFolders.id)
     .orderBy(asc(transcribeFolders.name));
-  return rows;
+
+  if (ownerCond) {
+    folderQuery = folderQuery.where(ownerCond) as typeof folderQuery;
+  }
+
+  return folderQuery;
 }
 
 export async function getTranscribeFolder(id: string) {
@@ -57,10 +82,17 @@ export async function getTranscribeFolder(id: string) {
   return folder ?? null;
 }
 
-export async function findTranscribeFolderByName(name: string, excludeId?: string) {
+export async function findTranscribeFolderByName(
+  name: string,
+  excludeId?: string,
+  scope?: FileScope,
+) {
   const db = getDb();
   const normalized = name.trim().toLowerCase();
-  const rows = await db.select().from(transcribeFolders);
+  const ownerCond = scope ? folderOwnerCondition(scope) : undefined;
+  const rows = ownerCond
+    ? await db.select().from(transcribeFolders).where(ownerCond)
+    : await db.select().from(transcribeFolders);
   return (
     rows.find(
       (f) =>
@@ -70,13 +102,18 @@ export async function findTranscribeFolderByName(name: string, excludeId?: strin
   );
 }
 
-export async function createTranscribeFolder(data: { id: string; name: string }) {
+export async function createTranscribeFolder(data: {
+  id: string;
+  name: string;
+  createdByUserId?: string | null;
+}) {
   const db = getDb();
   const [folder] = await db
     .insert(transcribeFolders)
     .values({
       id: data.id,
       name: data.name.trim(),
+      createdByUserId: data.createdByUserId ?? null,
     })
     .returning();
   return folder;
@@ -92,14 +129,19 @@ export async function updateTranscribeFolder(id: string, patch: { name: string }
   return folder ?? null;
 }
 
-export async function deleteTranscribeFolder(id: string): Promise<"deleted" | "not_empty" | "not_found"> {
-  const count = await countJobsInFolder(id);
+export async function deleteTranscribeFolder(
+  id: string,
+  scope?: FileScope,
+): Promise<"deleted" | "not_empty" | "not_found"> {
+  const count = await countJobsInFolder(id, scope);
   if (count > 0) return "not_empty";
 
   const db = getDb();
+  const ownerCond = scope ? folderOwnerCondition(scope) : undefined;
+  const conditions = ownerCond ? and(eq(transcribeFolders.id, id), ownerCond) : eq(transcribeFolders.id, id);
   const rows = await db
     .delete(transcribeFolders)
-    .where(eq(transcribeFolders.id, id))
+    .where(conditions)
     .returning({ id: transcribeFolders.id });
   if (rows.length === 0) return "not_found";
   return "deleted";
@@ -133,7 +175,10 @@ export async function createTranscribeJob(data: {
   systemPrompt?: string | null;
   sourceKey?: string | null;
   folderId?: string | null;
+  createdByUserId?: string | null;
   status?: string;
+  processLimitPages?: number | null;
+  processLimitSec?: string | null;
 }) {
   const db = getDb();
   const [job] = await db
@@ -151,7 +196,10 @@ export async function createTranscribeJob(data: {
       systemPrompt: data.systemPrompt ?? null,
       sourceKey: data.sourceKey ?? null,
       folderId: data.folderId ?? null,
+      createdByUserId: data.createdByUserId ?? null,
       status: data.status ?? "pending",
+      processLimitPages: data.processLimitPages ?? null,
+      processLimitSec: data.processLimitSec ?? null,
     })
     .returning();
   return job;

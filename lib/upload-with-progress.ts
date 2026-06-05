@@ -6,12 +6,15 @@ export type UploadProgress = {
 };
 
 type UploadParams = {
+  filename?: string;
   unit?: string;
   size?: string;
   model?: string;
   prompt?: string;
   systemPromptId?: string;
   folderId?: string;
+  processPages?: number;
+  processDurationSec?: number;
 };
 
 export function uploadTranscribeFile(
@@ -20,13 +23,21 @@ export function uploadTranscribeFile(
   onProgress: (progress: UploadProgress) => void,
 ): Promise<{ jobId: string }> {
   return new Promise((resolve, reject) => {
-    const q = new URLSearchParams({ filename: file.name });
+    const q = new URLSearchParams({
+      filename: params.filename ?? file.name,
+    });
     if (params.unit) q.set("unit", params.unit);
     if (params.size) q.set("size", params.size);
     if (params.model) q.set("model", params.model);
     if (params.prompt) q.set("prompt", params.prompt);
     if (params.systemPromptId) q.set("systemPromptId", params.systemPromptId);
     if (params.folderId) q.set("folderId", params.folderId);
+    if (params.processPages !== undefined) {
+      q.set("processPages", String(params.processPages));
+    }
+    if (params.processDurationSec !== undefined) {
+      q.set("processDurationSec", String(params.processDurationSec));
+    }
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `/api/transcribe?${q}`);

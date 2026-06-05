@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBooks, IconSettings } from "@tabler/icons-react";
+import { IconBooks, IconLogout, IconSettings } from "@tabler/icons-react";
+import { useAuth } from "@/components/auth/auth-provider";
 import { TRANSCRIBE_JOB_PATH } from "@/lib/detect-file-kind";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
   {
@@ -15,21 +18,29 @@ const NAV_ITEMS = [
     isActive: (pathname: string) =>
       pathname.startsWith("/transcribe") && !pathname.startsWith("/transcribe/settings"),
   },
-  {
-    href: "/transcribe/settings",
-    label: "Settings",
-    icon: IconSettings,
-    isActive: (pathname: string) => pathname.startsWith("/transcribe/settings"),
-  },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const onJobPage = TRANSCRIBE_JOB_PATH.test(pathname);
+  const { user, loading, logout, canAccessSettings, can } = useAuth();
+
+  const navItems = [
+    ...NAV_ITEMS,
+    ...(canAccessSettings
+      ? [
+          {
+            href: "/transcribe/settings",
+            label: "Settings",
+            icon: IconSettings,
+            isActive: (p: string) => p.startsWith("/transcribe/settings"),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div className="ambient-bg relative flex min-h-screen">
-      {/* Desktop sidebar */}
       <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border/40 bg-card/30 backdrop-blur-xl">
         <div className="flex h-14 items-center gap-2 border-b border-border/40 px-5">
           <div className="flex size-7 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
@@ -39,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <ThemeToggle />
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
-          {NAV_ITEMS.map(({ href, label, icon: Icon, isActive }) => {
+          {navItems.map(({ href, label, icon: Icon, isActive }) => {
             const active = isActive(pathname);
             return (
               <Link
@@ -58,14 +69,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="border-t border-border/40 p-4">
+        <div className="border-t border-border/40 p-4 space-y-3">
+          {!loading && user && (
+            <div className="space-y-2">
+              <div>
+                <p className="truncate text-xs font-medium text-foreground">{user.name}</p>
+                <p className="truncate text-[0.65rem] text-muted-foreground">{user.email}</p>
+              </div>
+              {can("file:all") && (
+                <Badge variant="secondary" className="text-[0.6rem]">
+                  All files
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-full justify-start gap-2 px-2 text-xs text-muted-foreground"
+                onClick={() => void logout()}
+              >
+                <IconLogout className="size-3.5" />
+                Sign out
+              </Button>
+            </div>
+          )}
           <p className="text-[0.65rem] text-muted-foreground">
             Process audio, PDF, and media into editable text
           </p>
         </div>
       </aside>
 
-      {/* Main content */}
       <div className={cn("flex min-h-screen flex-1 flex-col", !onJobPage && "pb-16 md:pb-0")}>
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 bg-card/30 px-4 backdrop-blur-xl md:hidden">
           <div className="flex items-center gap-2">
@@ -79,10 +111,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className={cn("flex-1", onJobPage ? "p-0 md:p-0" : "p-4 md:p-6")}>{children}</main>
       </div>
 
-      {/* Mobile bottom nav — hidden on job player for more content space */}
       {!onJobPage && (
         <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border/40 bg-card/80 backdrop-blur-xl md:hidden">
-          {NAV_ITEMS.map(({ href, label, icon: Icon, isActive }) => {
+          {navItems.map(({ href, label, icon: Icon, isActive }) => {
             const active = isActive(pathname);
             return (
               <Link

@@ -13,6 +13,7 @@ export type PdfPageSegment = {
 export async function splitPdfToPages(
   pdfPath: string,
   workDir: string,
+  maxPages?: number,
 ): Promise<PdfPageSegment[]> {
   const data = await import("fs/promises").then((fs) => fs.readFile(pdfPath));
   const loadingTask = getDocument({
@@ -27,10 +28,14 @@ export async function splitPdfToPages(
     throw new Error(`PDF has ${pageCount} pages; maximum is ${config.pdfMaxPages}`);
   }
 
+  const pagesToRender = maxPages
+    ? Math.min(pageCount, Math.max(1, Math.floor(maxPages)))
+    : pageCount;
+
   const scale = config.pdfRenderDpi / 72;
   const segments: PdfPageSegment[] = [];
 
-  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+  for (let pageNum = 1; pageNum <= pagesToRender; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const viewport = page.getViewport({ scale });
     const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));

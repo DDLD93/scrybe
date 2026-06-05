@@ -51,8 +51,13 @@ export async function split(
   unit: string,
   size: number,
   ext: string,
+  maxDurationSec?: number,
 ): Promise<SegmentDescriptor[]> {
-  const { duration, size: byteSize } = await probe(input);
+  const { duration: fullDuration, size: byteSize } = await probe(input);
+  const duration =
+    maxDurationSec !== undefined
+      ? Math.min(fullDuration, Math.max(0, maxDurationSec))
+      : fullDuration;
   let secondsPerSegment: number;
 
   if (unit === "mb") {
@@ -67,8 +72,13 @@ export async function split(
 
   const pattern = join(outDir, `%03d.${ext}`);
   const audioMap = ["-map", "0:a:0"];
+  const durationLimit =
+    maxDurationSec !== undefined && maxDurationSec < fullDuration
+      ? ["-t", String(maxDurationSec)]
+      : [];
   const baseArgs = [
     "-i", input,
+    ...durationLimit,
     ...audioMap,
     "-f", "segment",
     "-segment_time", String(secondsPerSegment),
@@ -96,9 +106,16 @@ export async function split(
   });
 }
 
-export async function normalizeForPlayback(input: string, output: string): Promise<void> {
+export async function normalizeForPlayback(
+  input: string,
+  output: string,
+  maxDurationSec?: number,
+): Promise<void> {
+  const durationLimit =
+    maxDurationSec !== undefined ? ["-t", String(maxDurationSec)] : [];
   await runCmd(config.ffmpegPath, [
     "-i", input,
+    ...durationLimit,
     "-map", "0:a:0",
     "-vn",
     "-c:a", "aac",

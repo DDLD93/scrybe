@@ -2,31 +2,45 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconAdjustments, IconMessage } from "@tabler/icons-react";
+import { IconAdjustments, IconMessage, IconUsers } from "@tabler/icons-react";
+import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
-
-const SETTINGS_TABS = [
-  {
-    href: "/transcribe/settings",
-    label: "General",
-    icon: IconAdjustments,
-    isActive: (pathname: string) =>
-      pathname === "/transcribe/settings" || pathname === "/transcribe/settings/",
-  },
-  {
-    href: "/transcribe/settings/prompts",
-    label: "Prompts",
-    icon: IconMessage,
-    isActive: (pathname: string) => pathname.startsWith("/transcribe/settings/prompts"),
-  },
-] as const;
 
 export function SettingsNav() {
   const pathname = usePathname();
+  const { can, canAny } = useAuth();
+
+  const tabs = [
+    can("settings:general") && {
+      href: "/transcribe/settings",
+      label: "General",
+      icon: IconAdjustments,
+      isActive: (p: string) => p === "/transcribe/settings" || p === "/transcribe/settings/",
+    },
+    can("settings:systemprompt") && {
+      href: "/transcribe/settings/prompts",
+      label: "Prompts",
+      icon: IconMessage,
+      isActive: (p: string) => p.startsWith("/transcribe/settings/prompts"),
+    },
+    canAny(["user:create", "user:permission"]) && {
+      href: "/transcribe/settings/users",
+      label: "Users",
+      icon: IconUsers,
+      isActive: (p: string) => p.startsWith("/transcribe/settings/users"),
+    },
+  ].filter(Boolean) as {
+    href: string;
+    label: string;
+    icon: typeof IconAdjustments;
+    isActive: (pathname: string) => boolean;
+  }[];
+
+  if (tabs.length === 0) return null;
 
   return (
     <nav className="flex gap-1 rounded-lg border border-border/50 bg-muted/30 p-1">
-      {SETTINGS_TABS.map(({ href, label, icon: Icon, isActive }) => {
+      {tabs.map(({ href, label, icon: Icon, isActive }) => {
         const active = isActive(pathname);
         return (
           <Link

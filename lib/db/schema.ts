@@ -29,6 +29,37 @@ export type TranscriptSegment = {
 
 export type SystemPromptFileType = "audio" | "pdf";
 
+export type UserPermission =
+  | "user:create"
+  | "user:permission"
+  | "settings:general"
+  | "settings:systemprompt"
+  | "file:all";
+
+export type UserStatus = "active" | "suspended";
+
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  permissions: jsonb("permissions").$type<UserPermission[]>().notNull().default([]),
+  status: text("status").$type<UserStatus>().notNull().default("active"),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const systemPrompts = pgTable("system_prompts", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
@@ -41,6 +72,7 @@ export const systemPrompts = pgTable("system_prompts", {
 export const transcribeFolders = pgTable("transcribe_folders", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -59,6 +91,7 @@ export const transcribeJobs = pgTable("transcribe_jobs", {
   }),
   systemPrompt: text("system_prompt"),
   folderId: uuid("folder_id").references(() => transcribeFolders.id, { onDelete: "set null" }),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
   status: text("status").notNull().default("pending"),
   totalChunks: integer("total_chunks").notNull().default(0),
   completedChunks: integer("completed_chunks").notNull().default(0),
@@ -67,6 +100,8 @@ export const transcribeJobs = pgTable("transcribe_jobs", {
   playbackKey: text("playback_key"),
   playbackContentType: text("playback_content_type"),
   durationSec: numeric("duration_sec", { precision: 12, scale: 4 }),
+  processLimitPages: integer("process_limit_pages"),
+  processLimitSec: numeric("process_limit_sec", { precision: 12, scale: 4 }),
   transcriptKey: text("transcript_key"),
   hasWordTimings: boolean("has_word_timings").notNull().default(false),
   language: text("language"),

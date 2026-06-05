@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { SettingsPermissionGuard } from "@/components/settings/settings-permission-guard";
 import type { SystemPromptFileType } from "@/lib/db/schema";
 
 type PromptRow = {
@@ -133,6 +134,7 @@ export default function SystemPromptsSettingsPage() {
   }
 
   return (
+    <SettingsPermissionGuard permissions={["settings:systemprompt"]}>
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
@@ -264,5 +266,6 @@ export default function SystemPromptsSettingsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </SettingsPermissionGuard>
   );
 }
