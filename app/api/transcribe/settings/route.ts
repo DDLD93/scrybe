@@ -11,6 +11,7 @@ export async function GET() {
             chunkSize: settings.chunkSize,
             model: settings.model,
             systemPrompt: settings.systemPrompt,
+            lastSystemPromptId: settings.lastSystemPromptId,
           }
         : null,
     });

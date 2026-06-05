@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pg"],
+  serverExternalPackages: ["pg", "@napi-rs/canvas", "pdfjs-dist"],
   turbopack: {
     root: import.meta.dirname,
   },

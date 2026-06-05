@@ -6,6 +6,7 @@ import {
   upsertTranscribeSettings,
 } from "@/lib/db/queries";
 import { validateMediaUrl } from "@/lib/media-fetch/ssrf";
+import { resolveSystemPromptForJob } from "@/lib/system-prompts";
 import { enqueue } from "@/lib/worker/queue";
 import { accepted, error, handleRoute } from "@/lib/api";
 
@@ -22,7 +23,17 @@ export async function POST(req: NextRequest) {
     const size = parseFloat(String(sizeRaw));
     if (!Number.isFinite(size) || size <= 0) return error("Invalid size");
 
-    const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
+    const customPrompt = typeof body.prompt === "string" ? body.prompt : undefined;
+    const systemPromptId =
+      typeof body.systemPromptId === "string" ? body.systemPromptId : undefined;
+
+    const resolved = await resolveSystemPromptForJob({
+      fileType: "audio",
+      systemPromptId,
+      customPrompt,
+    });
+    if (resolved === "invalid_preset") return error("Invalid system prompt for audio", 400);
+
     let folderId: string | null = null;
     if (body.folderId && body.folderId !== "__none__") {
       const folder = await getTranscribeFolder(String(body.folderId));
@@ -37,7 +48,9 @@ export async function POST(req: NextRequest) {
       chunkUnit: unit,
       chunkSize: String(size),
       model,
-      systemPrompt: prompt,
+      jobKind: "audio",
+      systemPromptId: resolved.systemPromptId,
+      systemPrompt: resolved.systemPrompt,
       folderId,
       status: "fetching",
       sourceUrl: url,
@@ -48,7 +61,8 @@ export async function POST(req: NextRequest) {
       chunkUnit: unit,
       chunkSize: String(size),
       model,
-      systemPrompt: prompt,
+      systemPrompt: resolved.systemPrompt,
+      lastSystemPromptId: resolved.systemPromptId,
     });
 
     enqueue({ type: "transcribe", jobId });

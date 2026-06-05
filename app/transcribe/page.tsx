@@ -65,7 +65,7 @@ export default function TranscribePage() {
               <EmptyState
                 icon={<IconMicrophone className="size-6" />}
                 title="No transcripts yet"
-                description="Upload audio or paste a media URL to create your first transcription."
+                description="Upload audio or PDF, or paste a media URL to get started."
                 actionLabel="Create your first transcript"
                 onAction={() => setDialogOpen(true)}
               />

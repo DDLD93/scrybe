@@ -127,6 +127,8 @@ export async function createTranscribeJob(data: {
   chunkUnit: string;
   chunkSize: string;
   model: string;
+  jobKind?: string;
+  systemPromptId?: string | null;
   systemPrompt?: string | null;
   sourceKey?: string | null;
   folderId?: string | null;
@@ -145,6 +147,8 @@ export async function createTranscribeJob(data: {
       chunkUnit: data.chunkUnit,
       chunkSize: data.chunkSize,
       model: data.model,
+      jobKind: data.jobKind ?? "audio",
+      systemPromptId: data.systemPromptId ?? null,
       systemPrompt: data.systemPrompt ?? null,
       sourceKey: data.sourceKey ?? null,
       folderId: data.folderId ?? null,
@@ -240,6 +244,7 @@ export async function upsertTranscribeSettings(data: {
   chunkSize?: string | null;
   model?: string | null;
   systemPrompt?: string | null;
+  lastSystemPromptId?: string | null;
 }) {
   const db = getDb();
   await db
@@ -250,6 +255,7 @@ export async function upsertTranscribeSettings(data: {
       chunkSize: data.chunkSize ?? null,
       model: data.model ?? null,
       systemPrompt: data.systemPrompt ?? null,
+      lastSystemPromptId: data.lastSystemPromptId ?? null,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -259,6 +265,7 @@ export async function upsertTranscribeSettings(data: {
         chunkSize: data.chunkSize ?? null,
         model: data.model ?? null,
         systemPrompt: data.systemPrompt ?? null,
+        lastSystemPromptId: data.lastSystemPromptId ?? null,
         updatedAt: new Date(),
       },
     });

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconMicrophone } from "@tabler/icons-react";
+import { TRANSCRIBE_JOB_PATH } from "@/lib/detect-file-kind";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
@@ -10,7 +11,7 @@ const NAV_ITEMS = [{ href: "/transcribe", label: "Transcripts", icon: IconMicrop
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const onJobPage = /^\/transcribe\/[^/]+$/.test(pathname);
+  const onJobPage = TRANSCRIBE_JOB_PATH.test(pathname);
 
   return (
     <div className="ambient-bg relative flex min-h-screen">
@@ -45,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="border-t border-border/40 p-4">
           <p className="text-[0.65rem] text-muted-foreground">
-            Audio transcriber with word-level sync
+            Audio transcription and PDF document extraction
           </p>
         </div>
       </aside>

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatSavedAgo } from "@/lib/format-relative-time";
+import { cn } from "@/lib/utils";
 
 const AUTO_SAVE_STORAGE_KEY = "scrybe:transcript-autosave";
 const AUTO_SAVE_DEBOUNCE_MS = 1500;
@@ -41,6 +42,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   >(async () => false);
 
   const [filename, setFilename] = useState("");
+  const [jobKind, setJobKind] = useState("audio");
   const [words, setWords] = useState<TranscriptWord[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [editMode, setEditMode] = useState(false);
@@ -69,7 +71,10 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
       try {
         const jobRes = await fetch(`/api/transcribe/jobs/${jobId}`);
         const jobData = await jobRes.json();
-        if (jobData.job) setFilename(jobData.job.filename);
+        if (jobData.job) {
+          setFilename(jobData.job.filename);
+          setJobKind(jobData.job.jobKind ?? "audio");
+        }
 
         const txRes = await fetch(`/api/transcribe/jobs/${jobId}/transcript`);
         if (!txRes.ok) {
@@ -87,6 +92,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   }, [jobId]);
 
   useEffect(() => {
+    if (jobKind === "pdf") return;
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -125,7 +131,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
     };
-  }, [words, activeIdx, editMode]);
+  }, [words, activeIdx, editMode, jobKind]);
 
   useEffect(() => {
     if (!editMode || !lastSavedAt) return;
@@ -264,6 +270,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
     void saveTranscriptRef.current({ close: true, silent: autoSaveEnabled });
   }
 
+  const isPdf = jobKind === "pdf";
   const playerProps = {
     playing,
     currentTime,
@@ -281,13 +288,20 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
   const lastSavedLabel = lastSavedAt ? formatSavedAgo(lastSavedAt) : null;
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden px-4 pb-24 pt-4 animate-in fade-in duration-500 md:h-[calc(100dvh-2rem)] md:px-6 md:pb-28 md:pt-6">
-      <audio
-        ref={audioRef}
-        src={`/api/transcribe/jobs/${jobId}/audio`}
-        preload="metadata"
-        className="hidden"
-      />
+    <div
+      className={cn(
+        "flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden px-4 pt-4 animate-in fade-in duration-500 md:h-[calc(100dvh-2rem)] md:px-6 md:pt-6",
+        isPdf ? "pb-6" : "pb-24 md:pb-28",
+      )}
+    >
+      {!isPdf && (
+        <audio
+          ref={audioRef}
+          src={`/api/transcribe/jobs/${jobId}/audio`}
+          preload="metadata"
+          className="hidden"
+        />
+      )}
 
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/40 pb-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -331,8 +345,8 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
             words={words}
             segments={segments}
             draftSegments={draftSegments}
-            activeIdx={activeIdx}
-            onSeek={seekTo}
+            activeIdx={isPdf ? -1 : activeIdx}
+            onSeek={isPdf ? () => {} : seekTo}
             onEnterEdit={enterEditMode}
             onFocusSegmentHandled={handleFocusSegmentHandled}
             onCancelEdit={cancelEdit}
@@ -344,7 +358,7 @@ export default function PlayerPage({ params }: { params: Promise<{ jobId: string
         </div>
       </div>
 
-      <AudioPlayerCompact variant="dock" {...playerProps} />
+      {!isPdf && <AudioPlayerCompact variant="dock" {...playerProps} />}
     </div>
   );
 }

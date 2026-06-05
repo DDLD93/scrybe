@@ -14,17 +14,21 @@
     "db:studio": "drizzle-kit studio",
     "db:check": "drizzle-kit check",
     "db:drop": "drizzle-kit drop",
-    "db:reset": "tsx --env-file=.env scripts/db-reset.ts"
+    "db:reset": "tsx --env-file=.env scripts/db-reset.ts",
+    "db:seed-prompts": "tsx --env-file=.env scripts/seed-system-prompts.ts",
+    "db:migrate-prompts": "tsx --env-file=.env scripts/migrate-system-prompts.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1056.0",
     "@aws-sdk/lib-storage": "^3.1056.0",
+    "@napi-rs/canvas": "^1.0.0",
     "@tabler/icons-react": "^3.44.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.6",
     "next-themes": "^0.4.6",
+    "pdfjs-dist": "^6.0.227",
     "pg": "^8.21.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",

@@ -60,4 +60,7 @@ export const config = {
   transcribeFetchTimeoutSec: envInt("TRANSCRIBE_FETCH_TIMEOUT_SEC", 3600),
   transcribeUploadMaxBytes: envInt("TRANSCRIBE_UPLOAD_MAX_BYTES", 1024 * 1024 * 1024),
   workerConcurrency: envInt("WORKER_CONCURRENCY", 1),
+
+  pdfRenderDpi: envInt("PDF_RENDER_DPI", 150),
+  pdfMaxPages: envInt("PDF_MAX_PAGES", 500),
 } as const;

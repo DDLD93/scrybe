@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-import { IconSearch } from "@tabler/icons-react";
+import { IconSearch, IconSettings } from "@tabler/icons-react";
+import { TRANSCRIBE_JOB_PATH } from "@/lib/detect-file-kind";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 export function TranscriptsSidebar() {
   const pathname = usePathname();
-  const activeId = pathname.match(/^\/transcribe\/([^/]+)$/)?.[1];
+  const activeId = pathname.match(TRANSCRIBE_JOB_PATH)?.[1];
   const [query, setQuery] = useState("");
   const { jobs, loading } = useTranscribeJobs(2000);
 
@@ -77,6 +78,18 @@ export function TranscriptsSidebar() {
           </ul>
         )}
       </nav>
+      <div className="border-t border-border/40 p-2">
+        <Link
+          href="/transcribe/settings"
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground",
+            pathname === "/transcribe/settings" && "bg-muted/50 text-foreground",
+          )}
+        >
+          <IconSettings className="size-3.5" />
+          System prompts
+        </Link>
+      </div>
     </aside>
   );
 }

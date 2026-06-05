@@ -55,13 +55,16 @@ export function compileMarkdown(
   chunkUnit: string,
   chunkSize: string,
   chunks: Array<{ idx: number; startSec: number | string | null; durSec: number | string | null; transcript: string | null }>,
+  opts?: { jobKind?: string },
 ): string {
+  const isPdf = opts?.jobKind === "pdf";
   const lines = [
-    `# Transcription: ${filename}`,
+    isPdf ? `# Document: ${filename}` : `# Transcription: ${filename}`,
     "",
     `- **Model:** ${model}`,
-    `- **Chunking:** ${chunkSize} ${chunkUnit}`,
-    `- **Segments:** ${chunks.length}`,
+    ...(isPdf
+      ? [`- **Pages:** ${chunks.length}`]
+      : [`- **Chunking:** ${chunkSize} ${chunkUnit}`]),
     `- **Generated:** ${new Date().toISOString()}`,
     "",
     "---",
@@ -69,10 +72,15 @@ export function compileMarkdown(
   ];
 
   for (const c of chunks) {
-    const start = Number(c.startSec ?? 0);
-    const dur = Number(c.durSec ?? 0);
-    const text = (c.transcript ?? "").trim() || "_(no speech detected)_";
-    lines.push(`## Segment ${c.idx + 1} (${fmtTime(start)}–${fmtTime(start + dur)})`, "", text, "");
+    const text = (c.transcript ?? "").trim() || (isPdf ? "_(no text detected)_" : "_(no speech detected)_");
+    if (isPdf) {
+      const pageNum = Number(c.startSec ?? c.idx) + 1;
+      lines.push(`## Page ${pageNum}`, "", text, "");
+    } else {
+      const start = Number(c.startSec ?? 0);
+      const dur = Number(c.durSec ?? 0);
+      lines.push(`## Segment ${c.idx + 1} (${fmtTime(start)}–${fmtTime(start + dur)})`, "", text, "");
+    }
   }
   return lines.join("\n");
 }

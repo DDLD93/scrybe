@@ -10,6 +10,7 @@ export type TranscribeJob = {
   totalChunks: number;
   completedChunks: number;
   hasWordTimings: boolean;
+  jobKind?: string;
   createdAt?: string;
   folderId?: string | null;
   folderName?: string | null;

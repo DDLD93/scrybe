@@ -9,7 +9,8 @@ type UploadParams = {
   unit: string;
   size: string;
   model: string;
-  prompt: string;
+  prompt?: string;
+  systemPromptId?: string;
   folderId?: string;
 };
 
@@ -24,8 +25,9 @@ export function uploadTranscribeFile(
       unit: params.unit,
       size: params.size,
       model: params.model,
-      prompt: params.prompt,
     });
+    if (params.prompt) q.set("prompt", params.prompt);
+    if (params.systemPromptId) q.set("systemPromptId", params.systemPromptId);
     if (params.folderId) q.set("folderId", params.folderId);
 
     const xhr = new XMLHttpRequest();

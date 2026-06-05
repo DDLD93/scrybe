@@ -33,6 +33,17 @@ export type TranscriptSegment = {
   wordEndIdx: number;
 };
 
+export type SystemPromptFileType = "audio" | "pdf";
+
+export const systemPrompts = pgTable("system_prompts", {
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
+  fileTypes: jsonb("file_types").$type<SystemPromptFileType[]>().notNull(),
+  prompt: text("prompt").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const transcribeFolders = pgTable("transcribe_folders", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
@@ -48,6 +59,10 @@ export const transcribeJobs = pgTable("transcribe_jobs", {
   chunkUnit: text("chunk_unit").notNull(),
   chunkSize: numeric("chunk_size", { precision: 12, scale: 4 }).notNull(),
   model: text("model").notNull(),
+  jobKind: text("job_kind").notNull().default("audio"),
+  systemPromptId: uuid("system_prompt_id").references(() => systemPrompts.id, {
+    onDelete: "set null",
+  }),
   systemPrompt: text("system_prompt"),
   folderId: uuid("folder_id").references(() => transcribeFolders.id, { onDelete: "set null" }),
   status: text("status").notNull().default("pending"),
@@ -94,5 +109,8 @@ export const transcribeSettings = pgTable("transcribe_settings", {
   chunkSize: numeric("chunk_size", { precision: 12, scale: 4 }),
   model: text("model"),
   systemPrompt: text("system_prompt"),
+  lastSystemPromptId: uuid("last_system_prompt_id").references(() => systemPrompts.id, {
+    onDelete: "set null",
+  }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

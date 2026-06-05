@@ -19,6 +19,8 @@ type ModelsCache = {
   models: ModelInfo[];
   sttOnlyIds: Set<string>;
   chatAudioIds: Set<string>;
+  visionIds: Set<string>;
+  allModels: OpenRouterModel[];
 };
 
 let modelsCache: ModelsCache | null = null;
@@ -27,6 +29,12 @@ const FALLBACK_MODELS: ModelInfo[] = [
   { id: "openai/whisper-large-v3-turbo", name: "Whisper Large V3 Turbo" },
   { id: "openai/whisper-1", name: "Whisper 1" },
   { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+];
+
+const FALLBACK_VISION_MODELS: ModelInfo[] = [
+  { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+  { id: "openai/gpt-4o", name: "GPT-4o" },
+  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini" },
 ];
 
 const FALLBACK_STT_ONLY = new Set([
@@ -74,16 +82,26 @@ function isChatAudioModel(model: OpenRouterModel): boolean {
   return inputs.includes("audio") && outputs.includes("text") && !outputs.includes("transcription");
 }
 
+function isVisionModel(model: OpenRouterModel): boolean {
+  const inputs = model.architecture?.input_modalities ?? [];
+  const outputs = model.architecture?.output_modalities ?? [];
+  return inputs.includes("image") && outputs.includes("text");
+}
+
 function buildModelsCache(allModels: OpenRouterModel[], sttModels: OpenRouterModel[]): ModelsCache {
   const sttOnlyIds = new Set(sttModels.filter(isSttOnlyModel).map((m) => m.id));
   const chatAudioIds = new Set(allModels.filter(isChatAudioModel).map((m) => m.id));
+  const visionIds = new Set(allModels.filter(isVisionModel).map((m) => m.id));
   for (const id of FALLBACK_STT_ONLY) sttOnlyIds.add(id);
+  for (const m of FALLBACK_VISION_MODELS) visionIds.add(m.id);
 
   return {
     at: Date.now(),
     models: mergeModels([allModels, sttModels]),
     sttOnlyIds,
     chatAudioIds,
+    visionIds,
+    allModels,
   };
 }
 
@@ -111,6 +129,8 @@ async function ensureModelsCache(): Promise<ModelsCache> {
     models: FALLBACK_MODELS,
     sttOnlyIds: new Set(FALLBACK_STT_ONLY),
     chatAudioIds: new Set(["google/gemini-2.5-flash"]),
+    visionIds: new Set(FALLBACK_VISION_MODELS.map((m) => m.id)),
+    allModels: [],
   };
   return modelsCache;
 }
@@ -118,6 +138,66 @@ async function ensureModelsCache(): Promise<ModelsCache> {
 export async function listModels(): Promise<ModelInfo[]> {
   const cache = await ensureModelsCache();
   return cache.models;
+}
+
+export async function listAudioModels(): Promise<ModelInfo[]> {
+  const cache = await ensureModelsCache();
+  return cache.models.filter(
+    (m) => cache.sttOnlyIds.has(m.id) || cache.chatAudioIds.has(m.id) || isSttModelHeuristic(m.id),
+  );
+}
+
+export async function listVisionModels(): Promise<ModelInfo[]> {
+  const cache = await ensureModelsCache();
+  const fromApi = cache.allModels
+    .filter(isVisionModel)
+    .map((m) => ({ id: m.id, name: m.name ?? m.id }));
+  if (fromApi.length > 0) {
+    return fromApi.sort((a, b) => a.id.localeCompare(b.id));
+  }
+  return [...FALLBACK_VISION_MODELS];
+}
+
+export async function isVisionModelId(modelId: string): Promise<boolean> {
+  const cache = await ensureModelsCache();
+  return cache.visionIds.has(modelId);
+}
+
+export async function transcribePage(
+  model: string,
+  base64Png: string,
+  prompt?: string | null,
+): Promise<TranscribeChunkResult> {
+  if (!config.openrouterApiKey) {
+    throw new Error("OPENROUTER_API_KEY is not set");
+  }
+
+  const userInstructions =
+    prompt?.trim() || "Extract all visible text from this document page.";
+  const system =
+    "Extract or transcribe page content per the user instructions. Output plain text only — no preamble unless requested.";
+
+  const body = {
+    model,
+    messages: [
+      { role: "system", content: system },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: userInstructions },
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${base64Png}` },
+          },
+        ],
+      },
+    ],
+  };
+
+  const json = await openrouterFetch("https://openrouter.ai/api/v1/chat/completions", body);
+  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
+  const text = choices?.[0]?.message?.content ?? "";
+  return { text: text.trim(), words: undefined };
 }
 
 function isSttModelHeuristic(model: string): boolean {

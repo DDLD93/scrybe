@@ -152,8 +152,13 @@ export function TranscriptsTable({ jobs, onRefresh, onEditJob }: TranscriptsTabl
                 }}
               >
                 <TableCell className="font-mono text-xs max-w-0">
-                  <span className="block truncate" title={job.filename}>
-                    {job.filename}
+                  <span className="flex items-center gap-1.5 truncate" title={job.filename}>
+                    <span className="truncate">{job.filename}</span>
+                    {job.jobKind === "pdf" && (
+                      <Badge variant="outline" className="shrink-0 text-[0.6rem]">
+                        PDF
+                      </Badge>
+                    )}
                   </span>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
