@@ -13,8 +13,15 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+function internalOrigin(): string {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  const host = process.env.HOST ?? "127.0.0.1";
+  const port = process.env.PORT ?? "3000";
+  return `http://${host}:${port}`;
+}
+
 async function fetchAuthStatus(req: NextRequest) {
-  const url = new URL("/api/auth/status", req.nextUrl.origin);
+  const url = new URL("/api/auth/status", internalOrigin());
   const res = await fetch(url, {
     headers: { cookie: req.headers.get("cookie") ?? "" },
     cache: "no-store",
