@@ -13,30 +13,45 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-function internalOrigin(): string {
+const AUTH_PROBE_HEADER = "x-scrybe-auth-probe";
+
+function internalOrigin(req: NextRequest): string {
   if (process.env.APP_URL) return process.env.APP_URL;
-  const host = process.env.HOST ?? "127.0.0.1";
+  const host = req.headers.get("host");
+  if (host) return `http://${host}`;
+  const fallbackHost = process.env.HOST ?? "127.0.0.1";
   const port = process.env.PORT ?? "3000";
-  return `http://${host}:${port}`;
+  return `http://${fallbackHost}:${port}`;
 }
 
 async function fetchAuthStatus(req: NextRequest) {
-  const url = new URL("/api/auth/status", internalOrigin());
-  const res = await fetch(url, {
-    headers: { cookie: req.headers.get("cookie") ?? "" },
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-  return res.json() as Promise<{
-    hasUsers: boolean;
-    user: {
-      mustChangePassword: boolean;
-      status: string;
-    } | null;
-  }>;
+  try {
+    const url = new URL("/api/auth/status", internalOrigin(req));
+    const res = await fetch(url, {
+      headers: {
+        cookie: req.headers.get("cookie") ?? "",
+        [AUTH_PROBE_HEADER]: "1",
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as {
+      hasUsers: boolean;
+      user: {
+        mustChangePassword: boolean;
+        status: string;
+      } | null;
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function middleware(req: NextRequest) {
+  if (req.headers.get(AUTH_PROBE_HEADER) === "1") {
+    return NextResponse.next();
+  }
+
   const { pathname } = req.nextUrl;
 
   if (
@@ -134,5 +149,5 @@ function isPublicApi(pathname: string): boolean {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image).*)"],
+  matcher: ["/((?!_next/static|_next/image|api/auth/status).*)"],
 };
