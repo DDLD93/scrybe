@@ -14,13 +14,14 @@ type SettingsPermissionGuardProps = {
 export function SettingsPermissionGuard({ permissions, children }: SettingsPermissionGuardProps) {
   const { user, loading, canAny } = useAuth();
   const router = useRouter();
+  const allowed = !!user && canAny(permissions);
 
   useEffect(() => {
     if (loading) return;
-    if (!user || !canAny(permissions)) {
+    if (!allowed) {
       router.replace("/transcribe");
     }
-  }, [loading, user, canAny, permissions, router]);
+  }, [loading, allowed, router]);
 
   if (loading) {
     return (
@@ -30,7 +31,7 @@ export function SettingsPermissionGuard({ permissions, children }: SettingsPermi
     );
   }
 
-  if (!user || !canAny(permissions)) return null;
+  if (!allowed) return null;
 
   return <>{children}</>;
 }

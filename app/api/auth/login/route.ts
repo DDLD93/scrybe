@@ -1,4 +1,4 @@
-import { getUserByEmail } from "@/lib/db/queries-users";
+import { getUserByEmail, repairBootstrapAdminPermissions } from "@/lib/db/queries-users";
 import { verifyPassword } from "@/lib/auth/password";
 import {
   createUserSession,
@@ -16,13 +16,15 @@ export async function POST(req: Request) {
       return error(parsed.error.issues.map((i) => i.message).join("; "));
     }
 
-    const user = await getUserByEmail(parsed.data.email);
+    let user = await getUserByEmail(parsed.data.email);
     if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
       return error("Invalid email or password", 401);
     }
     if (user.status === "suspended") {
       return error("Account suspended", 403);
     }
+
+    user = await repairBootstrapAdminPermissions(user);
 
     const token = await createUserSession(user.id);
     await setSessionCookie(token);

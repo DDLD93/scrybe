@@ -1,4 +1,5 @@
 import { eq, sql } from "drizzle-orm";
+import { ALL_PERMISSIONS } from "@/lib/auth/permissions";
 import { getDb } from "@/lib/db";
 import { sessions, type UserPermission, type UserStatus, users } from "@/lib/db/schema";
 
@@ -120,6 +121,19 @@ export async function deleteSessionByTokenHash(tokenHash: string): Promise<void>
 export async function deleteSessionsForUser(userId: string): Promise<void> {
   const db = getDb();
   await db.delete(sessions).where(eq(sessions.userId, userId));
+}
+
+export async function repairBootstrapAdminPermissions(
+  user: NonNullable<Awaited<ReturnType<typeof getUserById>>>,
+) {
+  if ((await countUsers()) !== 1) return user;
+
+  const current = user.permissions ?? [];
+  const hasAll = ALL_PERMISSIONS.every((p) => current.includes(p));
+  if (hasAll) return user;
+
+  const updated = await updateUser(user.id, { permissions: ALL_PERMISSIONS });
+  return updated ?? user;
 }
 
 export function toUserDto(user: Awaited<ReturnType<typeof getUserById>>) {

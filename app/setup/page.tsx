@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 
 export default function SetupPage() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,6 +31,7 @@ export default function SetupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Setup failed");
       toast.success("Admin account created");
+      await refresh();
       router.push("/transcribe");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
