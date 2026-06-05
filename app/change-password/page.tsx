@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthPageHeader } from "@/components/brand/auth-page-header";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function ChangePasswordPage() {
@@ -46,7 +47,8 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="ambient-bg flex min-h-screen flex-col items-center justify-center p-4">
+      <AuthPageHeader />
       <Card className="w-full max-w-md glass-card">
         <CardHeader>
           <CardTitle>Change your password</CardTitle>

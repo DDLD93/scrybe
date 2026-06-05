@@ -137,9 +137,9 @@
   .ambient-bg {
     background-color: var(--background);
     background-image:
-      radial-gradient(ellipse 80% 60% at 10% -10%, oklch(0.78 0.14 220 / 12%), transparent),
-      radial-gradient(ellipse 60% 50% at 90% 110%, oklch(0.55 0.18 280 / 8%), transparent),
-      radial-gradient(ellipse 40% 40% at 50% 50%, oklch(0.2 0.04 250 / 30%), transparent);
+      radial-gradient(ellipse 80% 60% at 10% -10%, color-mix(in srgb, var(--primary) 12%, transparent), transparent),
+      radial-gradient(ellipse 60% 50% at 90% 110%, color-mix(in srgb, var(--primary) 8%, transparent), transparent),
+      radial-gradient(ellipse 40% 40% at 50% 50%, color-mix(in srgb, var(--primary) 6%, transparent), transparent);
   }
 
   .glass-card {
@@ -152,7 +152,7 @@
 
   .transcript-scroll {
     scrollbar-width: thin;
-    scrollbar-color: oklch(0.78 0.14 220 / 30%) transparent;
+    scrollbar-color: color-mix(in srgb, var(--primary) 30%, transparent) transparent;
   }
 
   .transcript-scroll::-webkit-scrollbar {
@@ -160,7 +160,7 @@
   }
 
   .transcript-scroll::-webkit-scrollbar-thumb {
-    background: oklch(0.78 0.14 220 / 30%);
+    background: color-mix(in srgb, var(--primary) 30%, transparent);
     border-radius: 3px;
   }
 
@@ -186,11 +186,11 @@
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 oklch(0.78 0.14 220 / 60%);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 60%, transparent);
   }
   50% {
     opacity: 0.7;
-    box-shadow: 0 0 0 6px oklch(0.78 0.14 220 / 0%);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 0%, transparent);
   }
 }
 

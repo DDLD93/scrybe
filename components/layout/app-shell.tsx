@@ -6,6 +6,8 @@ import { IconBooks, IconLogout, IconSettings } from "@tabler/icons-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { TRANSCRIBE_JOB_PATH } from "@/lib/detect-file-kind";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { useBrand } from "@/components/brand/brand-provider";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const onJobPage = TRANSCRIBE_JOB_PATH.test(pathname);
   const { user, loading, logout, canAccessSettings, can } = useAuth();
+  const { tagline } = useBrand();
 
   const navItems = [
     ...NAV_ITEMS,
@@ -43,10 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="ambient-bg relative flex min-h-screen">
       <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border/40 bg-card/30 backdrop-blur-xl">
         <div className="flex h-14 items-center gap-2 border-b border-border/40 px-5">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
-            <span className="text-xs font-bold text-primary">S</span>
-          </div>
-          <span className="flex-1 text-sm font-semibold tracking-tight text-foreground">Scrybe</span>
+          <BrandLogo size="sm" nameClassName="flex-1" className="min-w-0 flex-1" />
           <ThemeToggle />
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
@@ -92,20 +92,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Button>
             </div>
           )}
-          <p className="text-[0.65rem] text-muted-foreground">
-            Process audio, PDF, and media into editable text
-          </p>
+          <p className="text-[0.65rem] text-muted-foreground">{tagline}</p>
         </div>
       </aside>
 
       <div className={cn("flex min-h-screen flex-1 flex-col", !onJobPage && "pb-16 md:pb-0")}>
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 bg-card/30 px-4 backdrop-blur-xl md:hidden">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
-              <span className="text-xs font-bold text-primary">S</span>
-            </div>
-            <span className="text-sm font-semibold tracking-tight text-foreground">Scrybe</span>
-          </div>
+          <BrandLogo size="sm" />
           <ThemeToggle />
         </header>
         <main className={cn("flex-1", onJobPage ? "p-0 md:p-0" : "p-4 md:p-6")}>{children}</main>

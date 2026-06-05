@@ -1,3 +1,4 @@
+import { branding } from "@/lib/branding";
 import { config } from "@/lib/config";
 
 export function buildWelcomeUserEmail(params: {
@@ -7,10 +8,13 @@ export function buildWelcomeUserEmail(params: {
   isReset?: boolean;
 }) {
   const loginUrl = `${config.appUrl}/login`;
-  const subject = params.isReset ? "Your Scrybe password was reset" : "Your Scrybe account";
+  const appName = branding.name;
+  const subject = params.isReset
+    ? `Your ${appName} password was reset`
+    : `Your ${appName} account`;
   const intro = params.isReset
-    ? "An administrator reset your Scrybe password."
-    : "An administrator created a Scrybe account for you.";
+    ? `An administrator reset your ${appName} password.`
+    : `An administrator created a ${appName} account for you.`;
 
   const text = `${intro}
 
@@ -33,7 +37,7 @@ If you did not expect this email, contact your administrator.`;
     <tr><td style="padding: 4px 12px 4px 0;"><strong>Email</strong></td><td>${escapeHtml(params.email)}</td></tr>
     <tr><td style="padding: 4px 12px 4px 0;"><strong>Temporary password</strong></td><td><code>${escapeHtml(params.password)}</code></td></tr>
   </table>
-  <p><a href="${loginUrl}">Sign in to Scrybe</a></p>
+  <p><a href="${loginUrl}">Sign in to ${escapeHtml(appName)}</a></p>
   <p style="color: #666; font-size: 14px;">You will be asked to change your password on first login.</p>
 </body>
 </html>`;

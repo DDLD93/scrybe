@@ -8,11 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthPageHeader } from "@/components/brand/auth-page-header";
+import { useBrand } from "@/components/brand/brand-provider";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function LoginPage() {
   const router = useRouter();
   const { refresh } = useAuth();
+  const { name } = useBrand();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,10 +51,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="ambient-bg flex min-h-screen flex-col items-center justify-center p-4">
+      <AuthPageHeader />
       <Card className="w-full max-w-md glass-card">
         <CardHeader>
-          <CardTitle>Sign in to Scrybe</CardTitle>
+          <CardTitle>Sign in to {name}</CardTitle>
           <CardDescription>Enter your email and password to continue.</CardDescription>
         </CardHeader>
         <CardContent>

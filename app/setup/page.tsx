@@ -9,11 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { AuthPageHeader } from "@/components/brand/auth-page-header";
+import { useBrand } from "@/components/brand/brand-provider";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function SetupPage() {
   const router = useRouter();
   const { refresh } = useAuth();
+  const { name: appName } = useBrand();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,10 +44,11 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="ambient-bg flex min-h-screen flex-col items-center justify-center p-4">
+      <AuthPageHeader />
       <Card className="w-full max-w-md glass-card">
         <CardHeader>
-          <CardTitle>Welcome to Scrybe</CardTitle>
+          <CardTitle>Welcome to {appName}</CardTitle>
           <CardDescription>
             Create the first administrator account to get started.
           </CardDescription>
