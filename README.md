@@ -48,6 +48,7 @@ Infrastructure is **remote**: point environment variables at your Postgres and S
 git clone <repo-url> scrybe && cd scrybe
 npm install
 cp .env.example .env   # fill in DATABASE_URL, S3, OPENROUTER_API_KEY
+npm run db:migrate
 npm run db:push        # apply schema to Postgres
 ```
 
